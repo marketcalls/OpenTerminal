@@ -13,10 +13,6 @@ def home():
 def about():
     return render_template('about.html')
 
-# Route for about page
-@app.route('/test')
-def about():
-    return render_template('test.html')
 
 # Run the app
 if __name__ == "__main__":
