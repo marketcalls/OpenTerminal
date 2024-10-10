@@ -42,8 +42,8 @@ open_terminal/
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/open-terminal.git
-   cd open-terminal
+   git clone https://github.com/marketcalls/OpenTerminal.git
+   cd OpenTerminal
    ```
 
 2. Create a virtual environment:
