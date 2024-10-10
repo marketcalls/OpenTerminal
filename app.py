@@ -1,19 +1,10 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask
+from extensions import db
+from routes import app
 
-# Initialize Flask app
-app = Flask(__name__)
+# Ensure the tables are created before the first request
+with app.app_context():
+    db.create_all()
 
-# Route for homepage (GET request)
-@app.route('/')
-def home():
-    return render_template('index.html')
-
-# Route for about page (GET request)
-@app.route('/about')
-def about():
-    return render_template('about.html')
-
-
-# Run the app
 if __name__ == "__main__":
     app.run(debug=True)

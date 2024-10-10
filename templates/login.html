@@ -1,0 +1,16 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h1 class="text-4xl">Login</h1>
+<form action="{{ url_for('login') }}" method="POST">
+    <label for="client_id">Client ID</label>
+    <input type="text" name="client_id" required>
+
+    <label for="pin">PIN</label>
+    <input type="password" name="pin" required>
+
+    <label for="totp">TOTP</label>
+    <input type="password" name="totp" required>
+
+    <button type="submit" class="btn btn-primary">Login</button>
+</form>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h1 class="text-4xl">Register</h1>
+<form action="{{ url_for('register') }}" method="POST">
+    <label for="username">Username</label>
+    <input type="text" name="username" required>
+
+    <label for="client_id">Client ID</label>
+    <input type="text" name="client_id" required>
+
+    <label for="api_key">API Key</label>
+    <input type="text" name="api_key" required>
+
+    <button type="submit" class="btn btn-primary">Register</button>
+</form>
+{% endblock %}
