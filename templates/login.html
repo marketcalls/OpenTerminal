@@ -1,16 +1,32 @@
 {% extends 'layout.html' %}
 {% block content %}
-<h1 class="text-4xl">Login</h1>
-<form action="{{ url_for('login') }}" method="POST">
-    <label for="client_id">Client ID</label>
-    <input type="text" name="client_id" required>
+<div class="flex items-center justify-center min-h-[calc(100vh-14rem)]">
+    <div class="w-full max-w-md p-8 space-y-6 bg-gray-800 rounded-lg shadow-xl">
+        <h1 class="text-4xl font-bold text-center text-blue-400">Login</h1>
+        <form action="{{ url_for('login') }}" method="POST" class="space-y-4">
+            <div class="form-control">
+                <label for="client_id" class="label">
+                    <span class="label-text text-white">Client ID</span>
+                </label>
+                <input type="text" name="client_id" required class="input input-bordered w-full bg-gray-700 text-white">
+            </div>
 
-    <label for="pin">PIN</label>
-    <input type="password" name="pin" required>
+            <div class="form-control">
+                <label for="pin" class="label">
+                    <span class="label-text text-white">PIN</span>
+                </label>
+                <input type="password" name="pin" required class="input input-bordered w-full bg-gray-700 text-white">
+            </div>
 
-    <label for="totp">TOTP</label>
-    <input type="password" name="totp" required>
+            <div class="form-control">
+                <label for="totp" class="label">
+                    <span class="label-text text-white">TOTP</span>
+                </label>
+                <input type="password" name="totp" required class="input input-bordered w-full bg-gray-700 text-white">
+            </div>
 
-    <button type="submit" class="btn btn-primary">Login</button>
-</form>
+            <button type="submit" class="btn btn-primary w-full">Login</button>
+        </form>
+    </div>
+</div>
 {% endblock %}
