@@ -3,7 +3,7 @@
 <div class="flex items-center justify-center min-h-[calc(100vh-14rem)]">
     <div class="w-full max-w-md p-8 space-y-6 bg-gray-800 rounded-lg shadow-xl">
         <h1 class="text-4xl font-bold text-center text-blue-400">Register</h1>
-        <form action="{{ url_for('register') }}" method="POST" class="space-y-4">
+        <form action="{{ url_for('auth.register') }}" method="POST" class="space-y-4">
             <div class="form-control">
                 <label for="username" class="label">
                     <span class="label-text text-white">Username</span>

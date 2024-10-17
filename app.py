@@ -1,26 +1,34 @@
 from flask import Flask
 from extensions import db
-from routes import app
+from routes import auth_bp, dashboard_bp, home_bp  # Import blueprints
 from apscheduler.schedulers.background import BackgroundScheduler
 from master_contract import download_and_store_json
 from datetime import datetime
 import pytz
 
-# Function to schedule the daily download
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object('config.Config')
+
+    # Initialize extensions
+    db.init_app(app)
+
+    # Register blueprints
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(dashboard_bp)
+    app.register_blueprint(home_bp)
+
+    return app
+
 def schedule_task(app):
     scheduler = BackgroundScheduler()
-    # Set time zone for IST
     ist = pytz.timezone('Asia/Kolkata')
     scheduler.add_job(func=lambda: download_and_store_json(app), trigger='cron', hour=20, minute=14, timezone=ist)
     scheduler.start()
 
-# Ensure the tables are created before the first request
-with app.app_context():
-    db.create_all()
-
-# Schedule the task with app context
-schedule_task(app)
-
-# Debug Enabled
 if __name__ == "__main__":
+    app = create_app()
+    with app.app_context():
+        db.create_all()
+    schedule_task(app)
     app.run(debug=True)
