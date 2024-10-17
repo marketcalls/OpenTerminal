@@ -18,8 +18,6 @@ def schedule_task(app):
 with app.app_context():
     db.create_all()
 
-
-
 # Schedule the task with app context
 schedule_task(app)
 

@@ -1,5 +1,5 @@
 from flask import Flask, render_template, redirect, url_for, flash, request, session
-from extensions import db
+from extensions import db, redis_client
 from models import User
 import requests
 import json
@@ -10,6 +10,20 @@ app.config.from_object('config.Config')
 
 # Initialize DB
 db.init_app(app)
+
+# Store user details in Redis during login
+def store_user_in_redis(user):
+    redis_client.hset(f"user:{user.client_id}", mapping={
+        "username": user.username,
+        "client_id": user.client_id,
+        "api_key": user.api_key,
+        "access_token": user.access_token,
+        "feed_token": user.feed_token
+    })
+
+# Remove user details from Redis during logout
+def remove_user_from_redis(client_id):
+    redis_client.delete(f"user:{client_id}")
 
 @app.route('/')
 def home():
@@ -45,8 +59,6 @@ def login():
 
         # Find the user in the database
         user = User.query.filter_by(client_id=client_id).first()
-
-
 
         if user:
             try:
@@ -92,6 +104,9 @@ def login():
                         user.feed_token = feed_token
                         db.session.commit()
 
+                        # Store user details in Redis
+                        store_user_in_redis(user)
+
                         session['client_id'] = client_id  # Set session for login
 
                         flash('Login successful!', 'success')
@@ -107,7 +122,6 @@ def login():
             flash('User not found.', 'danger')
 
     return render_template('login.html')
-
 
 
 @app.route('/dashboard')
@@ -132,9 +146,11 @@ def logout():
             user.access_token = None  # or you can use an empty string ''
             db.session.commit()
 
+            # Remove user details from Redis
+            remove_user_from_redis(client_id)
+
         # Clear the session
         session.pop('client_id', None)
         flash('You have been logged out and access token removed.', 'success')
 
     return redirect(url_for('login'))
-
