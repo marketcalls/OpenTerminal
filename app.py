@@ -11,12 +11,14 @@ def schedule_task(app):
     scheduler = BackgroundScheduler()
     # Set time zone for IST
     ist = pytz.timezone('Asia/Kolkata')
-    scheduler.add_job(func=lambda: download_and_store_json(app), trigger='cron', hour=20, minute=34, timezone=ist)
+    scheduler.add_job(func=lambda: download_and_store_json(app), trigger='cron', hour=20, minute=14, timezone=ist)
     scheduler.start()
 
 # Ensure the tables are created before the first request
 with app.app_context():
     db.create_all()
+
+
 
 # Schedule the task with app context
 schedule_task(app)

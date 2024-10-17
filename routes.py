@@ -46,8 +46,11 @@ def login():
         # Find the user in the database
         user = User.query.filter_by(client_id=client_id).first()
 
+
+
         if user:
             try:
+                print("User Found")
                 # AngelOne API Authentication
                 conn = http.client.HTTPSConnection("apiconnect.angelone.in")
                 payload = json.dumps({
@@ -86,6 +89,7 @@ def login():
                     if access_token:
                         # Store access_token in the database
                         user.access_token = access_token
+                        user.feed_token = feed_token
                         db.session.commit()
 
                         session['client_id'] = client_id  # Set session for login
