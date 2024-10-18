@@ -6,6 +6,7 @@
     <title>{{ title }}</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.13/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <style>
         html, body {
             height: 100%;
@@ -42,22 +43,21 @@
     </nav>
 
     <!-- Flash Messages -->
-<div class="container mx-auto mt-4">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="space-y-4">
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} shadow-lg">
-                        <div>
-                            <span>{{ message }}</span>
+    <div class="container mx-auto mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="space-y-4">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} shadow-lg">
+                            <div>
+                                <span>{{ message }}</span>
+                            </div>
                         </div>
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
-</div>
-
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+    </div>
 
     <!-- Main Content -->
     <main class="container mx-auto mt-10">

@@ -1,5 +1,227 @@
 {% extends 'layout.html' %}
 {% block content %}
-<h1 class="text-4xl">Welcome to OpenTerminal</h1>
-<p>This is a login-protected page.</p>
+<div class="flex">
+    <!-- Left Panel -->
+    <div class="w-1/4 bg-gray-800 p-4">
+        <!-- NIFTY and SENSEX indices -->
+        <div id="indices" class="mb-4">
+            <h2 class="text-xl font-bold">Indices</h2>
+            <div id="index-list">
+                <div class="flex justify-between">
+                    <span>NIFTY 50</span>
+                    <span id="nifty-value">Loading...</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>SENSEX</span>
+                    <span id="sensex-value">Loading...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Watchlists -->
+        <div id="watchlists">
+            <h2 class="text-xl font-bold mb-2">Watchlists</h2>
+            <button id="create-watchlist-btn" class="btn btn-primary btn-sm mb-4">Add Watchlist</button>
+            
+            <!-- Tabs for watchlists -->
+            <div class="tabs tabs-boxed mb-4">
+                {% for watchlist in watchlists %}
+                <button class="tab tab-btn {% if loop.first %}tab-active{% endif %}" data-watchlist-id="{{ watchlist.id }}">{{ watchlist.name }}</button>
+                {% endfor %}
+            </div>
+
+            <!-- Single search box for active watchlist -->
+            <input type="text" id="search-symbol-input" class="search-symbol-input mb-2 w-full input input-bordered" placeholder="Search symbol...">
+            <ul id="search-results" class="mb-4"></ul>
+
+            <!-- Watchlist content -->
+            {% for watchlist in watchlists %}
+            <div id="watchlist-{{ watchlist.id }}" class="watchlist-content {% if not loop.first %}hidden{% endif %}">
+                <ul class="pl-4">
+                    {% if watchlist.items is iterable and watchlist.items|length > 0 %}
+                        {% for item in watchlist.items %}
+                        <li class="flex justify-between items-center mb-2">
+                            <span>{{ item.symbol }}</span>
+                            <button class="btn btn-xs btn-error remove-item-btn" data-item-id="{{ item.id }}">Remove</button>
+                        </li>
+                        {% endfor %}
+                    {% else %}
+                        <li>No items in this watchlist.</li>
+                    {% endif %}
+                </ul>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="w-3/4 bg-gray-700 p-4">
+        <h2 class="text-xl font-bold">Right Panel Placeholder</h2>
+        <!-- Empty placeholder -->
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    // Handle create watchlist
+    document.getElementById('create-watchlist-btn').addEventListener('click', function() {
+        let watchlistName = prompt('Enter watchlist name:');
+        if (watchlistName) {
+            fetch('/create_watchlist', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({name: watchlistName})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+    });
+
+    // Handle remove watchlist
+    document.querySelectorAll('.remove-watchlist-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            let watchlistId = this.dataset.watchlistId;
+            if (confirm('Are you sure you want to delete this watchlist?')) {
+                fetch('/delete_watchlist', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({watchlist_id: watchlistId})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        location.reload();
+                    } else {
+                        alert(data.message);
+                    }
+                });
+            }
+        });
+    });
+
+    // Handle remove item
+    document.querySelectorAll('.remove-item-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            let itemId = this.dataset.itemId;
+            fetch('/remove_watchlist_item', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({item_id: itemId})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    this.closest('li').remove();
+                } else {
+                    alert(data.message);
+                }
+            });
+        });
+    });
+
+    // Handle tab switching
+    document.querySelectorAll('.tab-btn').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            // Remove active class from all tabs and hide all watchlist contents
+            document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('tab-active'));
+            document.querySelectorAll('.watchlist-content').forEach(w => w.classList.add('hidden'));
+            
+            // Add active class to clicked tab and show corresponding watchlist content
+            this.classList.add('tab-active');
+            document.getElementById('watchlist-' + this.dataset.watchlistId).classList.remove('hidden');
+        });
+    });
+
+    // Handle search symbol and add to watchlist
+    document.getElementById('search-symbol-input').addEventListener('input', function() {
+        let query = this.value;
+        let resultsContainer = document.getElementById('search-results');
+        if (query.length >= 2) {
+            fetch('/search_symbols?q=' + encodeURIComponent(query))
+            .then(response => response.json())
+            .then(data => {
+                resultsContainer.innerHTML = '';
+                data.results.forEach(function(result) {
+                    let li = document.createElement('li');
+                    li.textContent = result.symbol + ' - ' + result.name + ' (' + result.exch_seg + ')';
+                    li.dataset.symbol = result.symbol;
+                    li.dataset.exchSeg = result.exch_seg;
+                    li.classList.add('search-result-item', 'cursor-pointer', 'hover:bg-gray-700', 'p-2');
+                    resultsContainer.appendChild(li);
+                });
+            });
+        } else {
+            resultsContainer.innerHTML = '';
+        }
+    });
+
+    // Handle click on search result to add item
+    document.addEventListener('click', function(event) {
+        if (event.target.classList.contains('search-result-item')) {
+            let symbol = event.target.dataset.symbol;
+            let exch_seg = event.target.dataset.exchSeg;
+            let activeTab = document.querySelector('.tab-btn.tab-active');
+            let watchlistId = activeTab.dataset.watchlistId;
+            fetch('/add_watchlist_item', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({watchlist_id: watchlistId, symbol: symbol, exch_seg: exch_seg})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Add the new item to the active watchlist content
+                    let watchlistContent = document.getElementById('watchlist-' + watchlistId);
+                    let ul = watchlistContent.querySelector('ul');
+                    let li = document.createElement('li');
+                    li.className = 'flex justify-between items-center mb-2';
+                    li.innerHTML = `
+                        <span>${symbol}</span>
+                        <button class="btn btn-xs btn-error remove-item-btn" data-item-id="${data.item_id}">Remove</button>
+                    `;
+                    ul.appendChild(li);
+                    
+                    // Clear the search input and results
+                    document.getElementById('search-symbol-input').value = '';
+                    document.getElementById('search-results').innerHTML = '';
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+    });
+
+    // Fetch NIFTY and SENSEX values
+    function updateIndices() {
+        fetch('/get_indices')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('nifty-value').textContent = data.nifty;
+            document.getElementById('sensex-value').textContent = data.sensex;
+        });
+    }
+
+    updateIndices();
+});
+</script>
 {% endblock %}

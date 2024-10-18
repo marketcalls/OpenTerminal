@@ -4,6 +4,9 @@
     <div class="w-full max-w-md p-8 space-y-6 bg-gray-800 rounded-lg shadow-xl">
         <h1 class="text-4xl font-bold text-center text-blue-400">Login</h1>
         <form action="{{ url_for('auth.login') }}" method="POST" class="space-y-4">
+            <!-- CSRF token should be included as a hidden input -->
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
             <div class="form-control">
                 <label for="client_id" class="label">
                     <span class="label-text text-white">Client ID</span>
