@@ -150,7 +150,7 @@ def search_symbols():
 def get_indices():
     # Fetch real-time data for NIFTY and SENSEX (Placeholder values used here)
     data = {
-        'nifty': '17,000',
-        'sensex': '58,000'
+        'nifty': '24,854',
+        'sensex': '81,224'
     }
     return jsonify(data)
