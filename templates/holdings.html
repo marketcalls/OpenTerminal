@@ -1,0 +1,69 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="container mx-auto mt-10">
+    <h1 class="text-3xl font-bold mb-6">Holdings</h1>
+
+    <!-- Display Total Holdings Info in Stats -->
+    <div class="stats shadow-lg bg-gray-800 mb-6">
+        <div class="stat">
+            <div class="stat-title">Total Holding Value</div>
+            <div class="stat-value text-green-500">{{ totalholding_data.totalholdingvalue | float | round(2) }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">Total Investment Value</div>
+            <div class="stat-value text-yellow-500">{{ totalholding_data.totalinvvalue | float | round(2) }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">Total Profit and Loss</div>
+            <div class="stat-value {% if totalholding_data.totalprofitandloss > 0 %} text-green-500 {% else %} text-red-500 {% endif %}">
+                {{ totalholding_data.totalprofitandloss | float | round(2) }}
+            </div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">Total P&L Percentage</div>
+            <div class="stat-value {% if totalholding_data.totalpnlpercentage > 0 %} text-green-500 {% else %} text-red-500 {% endif %}">
+                {{ totalholding_data.totalpnlpercentage | float | round(2) }}%
+            </div>
+        </div>
+    </div>
+
+    <!-- Display Individual Holdings in a Table -->
+    <div class="overflow-x-auto">
+        <table class="table-auto w-full bg-gray-800 text-white shadow-lg">
+            <thead>
+                <tr class="bg-gray-700">
+                    <th class="px-4 py-2 text-center">Symbol</th>
+                    <th class="px-4 py-2 text-center">Exchange</th>
+                    <th class="px-4 py-2 text-center">Quantity</th>
+                    <th class="px-4 py-2 text-center">Average Price</th>
+                    <th class="px-4 py-2 text-center">LTP</th>
+                    <th class="px-4 py-2 text-center">Profit and Loss</th>
+                    <th class="px-4 py-2 text-center">P&L %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for holding in holdings_data %}
+                <tr class="border-b border-gray-600">
+                    <td class="px-4 py-2 text-center">{{ holding.tradingsymbol }}</td>
+                    <td class="px-4 py-2 text-center">{{ holding.exchange }}</td>
+                    <td class="px-4 py-2 text-center">{{ holding.quantity }}</td>
+                    <td class="px-4 py-2 text-center">{{ holding.averageprice | float | round(2) }}</td>
+                    <td class="px-4 py-2 text-center">{{ holding.ltp | float | round(2) }}</td>
+                    <td class="px-4 py-2 text-center {% if holding.profitandloss > 0 %} text-green-500 {% else %} text-red-500 {% endif %}">
+                        {{ holding.profitandloss | float | round(2) }}
+                    </td>
+                    <td class="px-4 py-2 text-center {% if holding.pnlpercentage > 0 %} text-green-500 {% else %} text-red-500 {% endif %}">
+                        {{ holding.pnlpercentage | float | round(2) }}%
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="px-4 py-2 text-center">No holdings found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

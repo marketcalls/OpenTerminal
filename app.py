@@ -1,6 +1,6 @@
 from flask import Flask
 from extensions import db
-from routes import auth_bp, dashboard_bp, home_bp, funds_bp
+from routes import auth_bp, dashboard_bp, home_bp, funds_bp, orders_bp
 from apscheduler.schedulers.background import BackgroundScheduler
 from master_contract import download_and_store_json
 from datetime import datetime
@@ -20,6 +20,7 @@ def create_app():
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(home_bp)
     app.register_blueprint(funds_bp)
+    app.register_blueprint(orders_bp)
 
     return app
 

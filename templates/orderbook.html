@@ -1,0 +1,57 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="container mx-auto mt-10">
+    <h1 class="text-3xl font-bold mb-6">Order Book</h1>
+    <div class="overflow-x-auto">
+        <table class="table-auto w-full bg-gray-800 text-white shadow-lg">
+            <thead>
+                <tr class="bg-gray-700">
+                    <th class="px-4 py-2 text-center">Order ID</th>
+                    <th class="px-4 py-2 text-center">Symbol</th>
+                    <th class="px-4 py-2 text-center">Order Type</th>
+                    <th class="px-4 py-2 text-center">Product Type</th>
+                    <th class="px-4 py-2 text-center">Transaction Type</th>
+                    <th class="px-4 py-2 text-center">Price</th>
+                    <th class="px-4 py-2 text-center">Trigger Price</th>
+                    <th class="px-4 py-2 text-center">Quantity</th>
+                    <th class="px-4 py-2 text-center">Order Status</th>
+                    <th class="px-4 py-2 text-center">Update Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in order_data %}
+                <tr class="border-b border-gray-600">
+                    <td class="px-4 py-2 text-center">{{ order.orderid }}</td>
+                    <td class="px-4 py-2 text-center">{{ order.tradingsymbol }}</td>
+                    <td class="px-4 py-2 text-center">{{ order.ordertype }}</td>
+                    <td class="px-4 py-2 text-center">{{ order.producttype }}</td>
+                    <td class="px-4 py-2 text-center">
+                        <span class="badge badge-outline {{ 'badge-success' if order.transactiontype == 'BUY' else 'badge-error' }}">
+                            {{ order.transactiontype }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-2 text-center">{{ order.price | float | round(2) }}</td>
+                    <td class="px-4 py-2 text-center">{{ order.triggerprice | float | round(2) }}</td>
+                    <td class="px-4 py-2 text-center">{{ order.quantity }}</td>
+                    <td class="px-4 py-2 text-center">
+                        <span class="badge badge-outline 
+                            {% if order.orderstatus == 'complete' %} badge-success 
+                            {% elif order.orderstatus == 'open' %} badge-info 
+                            {% elif order.orderstatus == 'rejected' %} badge-error 
+                            {% endif %}">
+                            {{ order.orderstatus }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-2 text-center">{{ order.updatetime }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" class="px-4 py-2 text-center">No orders found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
