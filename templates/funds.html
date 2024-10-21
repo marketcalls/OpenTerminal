@@ -1,0 +1,29 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="container mx-auto mt-10">
+    <h1 class="text-3xl font-bold mb-6">Fund Details</h1>
+    <div class="stats shadow-lg bg-gray-800">
+        <div class="stat">
+            <div class="stat-title">Net</div>
+            <div class="stat-value text-green-500">{{ fund_data.net | float | round(2) }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">Collateral</div>
+            <div class="stat-value text-yellow-500">{{ fund_data.collateral | float | round(2) }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">M2M Unrealized</div>
+            <div class="stat-value text-red-500">{{ fund_data.m2munrealized | float | round(2) }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">M2M Realized</div>
+            <div class="stat-value text-green-500">{{ fund_data.m2mrealized | float | round(2) }}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-title">Utilized Debits</div>
+            <div class="stat-value text-red-500">{{ fund_data.utiliseddebits | float | round(2) }}</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

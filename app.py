@@ -1,6 +1,6 @@
 from flask import Flask
 from extensions import db
-from routes import auth_bp, dashboard_bp, home_bp
+from routes import auth_bp, dashboard_bp, home_bp, funds_bp
 from apscheduler.schedulers.background import BackgroundScheduler
 from master_contract import download_and_store_json
 from datetime import datetime
@@ -19,13 +19,14 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(home_bp)
+    app.register_blueprint(funds_bp)
 
     return app
 
 def schedule_task(app):
     scheduler = BackgroundScheduler()
     ist = pytz.timezone('Asia/Kolkata')
-    scheduler.add_job(func=lambda: download_and_store_json(app), trigger='cron', hour=20, minute=17, timezone=ist)
+    scheduler.add_job(func=lambda: download_and_store_json(app), trigger='cron', hour=19, minute=20, timezone=ist)
     scheduler.start()
 
 if __name__ == "__main__":
