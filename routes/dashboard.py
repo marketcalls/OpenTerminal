@@ -13,15 +13,48 @@ def dashboard():
 
     user = User.query.filter_by(client_id=session['client_id']).first()
 
-    # Always fetch data from the database and update Redis
-    update_redis_watchlist(user.id)
+    # Get watchlists directly from the database
+    watchlists = Watchlist.query.filter_by(user_id=user.id).all()
+    watchlists_data = []
 
-    # Fetch updated data from Redis
+    for watchlist in watchlists:
+        # Get items for this watchlist
+        watchlist_items = WatchlistItem.query.filter_by(watchlist_id=watchlist.id).all()
+        
+        # Create watchlist data with items list
+        watchlist_dict = {
+            'id': watchlist.id,
+            'name': watchlist.name,
+            'items_list': [{  # Changed from 'items' to 'items_list'
+                'id': item.id,
+                'symbol': item.symbol,
+                'name': item.name,
+                'token': item.token,
+                'expiry': item.expiry,
+                'strike': item.strike,
+                'lotsize': item.lotsize,
+                'instrumenttype': item.instrumenttype,
+                'exch_seg': item.exch_seg,
+                'tick_size': item.tick_size
+            } for item in watchlist_items]
+        }
+        watchlists_data.append(watchlist_dict)
+
+    # Update Redis with fresh data
     redis_key = f'user:{user.id}:watchlists'
-    watchlists_data = redis_client.get(redis_key)
-    watchlists_data = json.loads(watchlists_data) if watchlists_data else []
+    redis_client.set(redis_key, json.dumps(watchlists_data))
 
-    return render_template('dashboard.html', watchlists=watchlists_data)
+    # Get watchlist settings
+    settings_key = f'user:{user.id}:watchlist_settings'
+    settings = redis_client.hgetall(settings_key) or {
+        'show_ltp_change': 'true',
+        'show_ltp_change_percent': 'true',
+        'show_holdings': 'true'
+    }
+
+    return render_template('dashboard.html', 
+                         watchlists=watchlists_data, 
+                         settings=settings)
 
 @dashboard_bp.route('/create_watchlist', methods=['POST'])
 def create_watchlist():
@@ -31,6 +64,7 @@ def create_watchlist():
     user = User.query.filter_by(client_id=session['client_id']).first()
     data = request.get_json()
     name = data.get('name')
+    
     if not name:
         return jsonify({'status': 'error', 'message': 'Watchlist name is required'}), 400
 
@@ -38,15 +72,75 @@ def create_watchlist():
     if watchlist_count >= 5:
         return jsonify({'status': 'error', 'message': 'Maximum 5 watchlists allowed'}), 400
 
-    # Create a new watchlist
-    new_watchlist = Watchlist(name=name, user_id=user.id)
-    db.session.add(new_watchlist)
-    db.session.commit()
+    try:
+        # Create new watchlist
+        new_watchlist = Watchlist(name=name, user_id=user.id)
+        db.session.add(new_watchlist)
+        db.session.commit()
 
-    # Update Redis with fresh data
-    update_redis_watchlist(user.id)
+        # Prepare response data
+        watchlist_data = {
+            'id': new_watchlist.id,
+            'name': new_watchlist.name,
+            'items': []
+        }
 
-    return jsonify({'status': 'success', 'watchlist_id': new_watchlist.id})
+        # Update Redis
+        redis_key = f'user:{user.id}:watchlists'
+        existing_data = redis_client.get(redis_key)
+        if existing_data:
+            watchlists_data = json.loads(existing_data)
+            watchlists_data.append(watchlist_data)
+            redis_client.set(redis_key, json.dumps(watchlists_data))
+
+        return jsonify({
+            'status': 'success',
+            'watchlist_id': new_watchlist.id,
+            'data': watchlist_data
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@dashboard_bp.route('/update_watchlist', methods=['POST'])
+def update_watchlist():
+    if 'client_id' not in session:
+        return jsonify({'status': 'error', 'message': 'Not logged in'}), 401
+
+    user = User.query.filter_by(client_id=session['client_id']).first()
+    data = request.get_json()
+    watchlist_id = data.get('watchlist_id')
+    new_name = data.get('name')
+
+    if not new_name:
+        return jsonify({'status': 'error', 'message': 'Watchlist name is required'}), 400
+
+    try:
+        watchlist = Watchlist.query.filter_by(id=watchlist_id, user_id=user.id).first()
+        if not watchlist:
+            return jsonify({'status': 'error', 'message': 'Watchlist not found'}), 404
+
+        # Update watchlist name
+        watchlist.name = new_name
+        db.session.commit()
+
+        # Update Redis
+        redis_key = f'user:{user.id}:watchlists'
+        existing_data = redis_client.get(redis_key)
+        if existing_data:
+            watchlists_data = json.loads(existing_data)
+            for watchlist_data in watchlists_data:
+                if watchlist_data['id'] == watchlist_id:
+                    watchlist_data['name'] = new_name
+                    break
+            redis_client.set(redis_key, json.dumps(watchlists_data))
+
+        return jsonify({'status': 'success'})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @dashboard_bp.route('/delete_watchlist', methods=['POST'])
 def delete_watchlist():
@@ -57,18 +151,28 @@ def delete_watchlist():
     data = request.get_json()
     watchlist_id = data.get('watchlist_id')
 
-    watchlist = Watchlist.query.filter_by(id=watchlist_id, user_id=user.id).first()
-    if not watchlist:
-        return jsonify({'status': 'error', 'message': 'Watchlist not found'}), 404
+    try:
+        watchlist = Watchlist.query.filter_by(id=watchlist_id, user_id=user.id).first()
+        if not watchlist:
+            return jsonify({'status': 'error', 'message': 'Watchlist not found'}), 404
 
-    # Delete watchlist from database
-    db.session.delete(watchlist)
-    db.session.commit()
+        # Delete watchlist and all its items
+        db.session.delete(watchlist)
+        db.session.commit()
 
-    # Update Redis with fresh data
-    update_redis_watchlist(user.id)
+        # Update Redis
+        redis_key = f'user:{user.id}:watchlists'
+        existing_data = redis_client.get(redis_key)
+        if existing_data:
+            watchlists_data = json.loads(existing_data)
+            watchlists_data = [w for w in watchlists_data if w['id'] != watchlist_id]
+            redis_client.set(redis_key, json.dumps(watchlists_data))
 
-    return jsonify({'status': 'success'})
+        return jsonify({'status': 'success'})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @dashboard_bp.route('/add_watchlist_item', methods=['POST'])
 def add_watchlist_item():
@@ -84,30 +188,76 @@ def add_watchlist_item():
     if not symbol or not exch_seg:
         return jsonify({'status': 'error', 'message': 'Symbol and Exchange Segment are required'}), 400
 
-    instrument = Instrument.query.filter_by(symbol=symbol, exch_seg=exch_seg).first()
-    if not instrument:
-        return jsonify({'status': 'error', 'message': 'Instrument not found'}), 404
+    try:
+        # Verify watchlist belongs to user
+        watchlist = Watchlist.query.filter_by(id=watchlist_id, user_id=user.id).first()
+        if not watchlist:
+            return jsonify({'status': 'error', 'message': 'Watchlist not found'}), 404
 
-    # Create a new watchlist item
-    new_item = WatchlistItem(
-        watchlist_id=watchlist_id,
-        symbol=instrument.symbol,
-        name=instrument.name,
-        token=instrument.token,
-        expiry=instrument.expiry,
-        strike=instrument.strike,
-        lotsize=instrument.lotsize,
-        instrumenttype=instrument.instrumenttype,
-        exch_seg=instrument.exch_seg,
-        tick_size=instrument.tick_size
-    )
-    db.session.add(new_item)
-    db.session.commit()
+        # Get instrument details
+        instrument = Instrument.query.filter_by(symbol=symbol, exch_seg=exch_seg).first()
+        if not instrument:
+            return jsonify({'status': 'error', 'message': 'Instrument not found'}), 404
 
-    # Update Redis with fresh data
-    update_redis_watchlist(user.id)
+        # Check if item already exists in watchlist
+        existing_item = WatchlistItem.query.filter_by(
+            watchlist_id=watchlist_id,
+            symbol=symbol,
+            exch_seg=exch_seg
+        ).first()
 
-    return jsonify({'status': 'success', 'item_id': new_item.id})
+        if existing_item:
+            return jsonify({'status': 'error', 'message': 'Item already exists in watchlist'}), 400
+
+        # Create new watchlist item
+        new_item = WatchlistItem(
+            watchlist_id=watchlist_id,
+            symbol=instrument.symbol,
+            name=instrument.name,
+            token=instrument.token,
+            expiry=instrument.expiry,
+            strike=instrument.strike,
+            lotsize=instrument.lotsize,
+            instrumenttype=instrument.instrumenttype,
+            exch_seg=instrument.exch_seg,
+            tick_size=instrument.tick_size
+        )
+        db.session.add(new_item)
+        db.session.commit()
+
+        # Update Redis
+        item_data = {
+            'id': new_item.id,
+            'symbol': new_item.symbol,
+            'name': new_item.name,
+            'token': new_item.token,
+            'expiry': new_item.expiry,
+            'strike': new_item.strike,
+            'lotsize': new_item.lotsize,
+            'instrumenttype': new_item.instrumenttype,
+            'exch_seg': new_item.exch_seg,
+            'tick_size': new_item.tick_size
+        }
+
+        redis_key = f'user:{user.id}:watchlists'
+        existing_data = redis_client.get(redis_key)
+        if existing_data:
+            watchlists_data = json.loads(existing_data)
+            for watchlist_data in watchlists_data:
+                if watchlist_data['id'] == watchlist_id:
+                    watchlist_data['items'].append(item_data)
+                    break
+            redis_client.set(redis_key, json.dumps(watchlists_data))
+
+        return jsonify({
+            'status': 'success',
+            'item_id': new_item.id,
+            'data': item_data
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @dashboard_bp.route('/remove_watchlist_item', methods=['POST'])
 def remove_watchlist_item():
@@ -118,61 +268,117 @@ def remove_watchlist_item():
     data = request.get_json()
     item_id = data.get('item_id')
 
-    item = WatchlistItem.query.filter_by(id=item_id).first()
-    if not item:
-        return jsonify({'status': 'error', 'message': 'Item not found'}), 404
+    try:
+        # Get the item and verify it belongs to user's watchlist
+        item = WatchlistItem.query.join(Watchlist).filter(
+            WatchlistItem.id == item_id,
+            Watchlist.user_id == user.id
+        ).first()
 
-    # Delete item from database
-    db.session.delete(item)
-    db.session.commit()
+        if not item:
+            return jsonify({'status': 'error', 'message': 'Item not found'}), 404
 
-    # Update Redis with fresh data
-    update_redis_watchlist(user.id)
+        # Delete the item
+        watchlist_id = item.watchlist_id
+        db.session.delete(item)
+        db.session.commit()
 
-    return jsonify({'status': 'success'})
+        # Update Redis
+        redis_key = f'user:{user.id}:watchlists'
+        existing_data = redis_client.get(redis_key)
+        if existing_data:
+            watchlists_data = json.loads(existing_data)
+            for watchlist_data in watchlists_data:
+                if watchlist_data['id'] == watchlist_id:
+                    watchlist_data['items'] = [i for i in watchlist_data['items'] if i['id'] != item_id]
+                    break
+            redis_client.set(redis_key, json.dumps(watchlists_data))
+
+        return jsonify({'status': 'success'})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@dashboard_bp.route('/update_watchlist_settings', methods=['POST'])
+def update_watchlist_settings():
+    if 'client_id' not in session:
+        return jsonify({'status': 'error', 'message': 'Not logged in'}), 401
+
+    user = User.query.filter_by(client_id=session['client_id']).first()
+    data = request.get_json()
+
+    try:
+        # Update settings in Redis
+        settings_key = f'user:{user.id}:watchlist_settings'
+        redis_client.hmset(settings_key, {
+            'show_ltp_change': str(data.get('show_ltp_change', True)).lower(),
+            'show_ltp_change_percent': str(data.get('show_ltp_change_percent', True)).lower(),
+            'show_holdings': str(data.get('show_holdings', True)).lower()
+        })
+
+        return jsonify({'status': 'success'})
+
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @dashboard_bp.route('/search_symbols', methods=['GET'])
 def search_symbols():
     query = request.args.get('q', '')
-    if not query:
+    if not query or len(query) < 2:
         return jsonify({'results': []})
 
-    instruments = Instrument.query.filter(
-        (Instrument.symbol.ilike(f'%{query}%')) | (Instrument.name.ilike(f'%{query}%'))
-    ).limit(10).all()
+    try:
+        # Search in both symbol and name fields
+        instruments = Instrument.query.filter(
+            (Instrument.symbol.ilike(f'%{query}%')) | 
+            (Instrument.name.ilike(f'%{query}%'))
+        ).limit(10).all()
 
-    results = []
-    for instrument in instruments:
-        results.append({
+        results = [{
             'symbol': instrument.symbol,
             'name': instrument.name,
-            'exch_seg': instrument.exch_seg
-        })
+            'exch_seg': instrument.exch_seg,
+            'token': instrument.token
+        } for instrument in instruments]
 
-    return jsonify({'results': results})
+        return jsonify({'results': results})
+
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @dashboard_bp.route('/get_indices')
 def get_indices():
     # Fetch real-time data for NIFTY and SENSEX (Placeholder values used here)
-    data = {
-        'nifty': '24,854',
-        'sensex': '81,224'
-    }
-    return jsonify(data)
+    try:
+        # In a real implementation, you would fetch this data from your data provider
+        data = {
+            'nifty': '24,854',
+            'sensex': '81,224',
+            'nifty_change': '+120.45 (0.48%)',
+            'sensex_change': '+360.75 (0.44%)'
+        }
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# Add these helper functions at the end of dashboard.py
 
 def update_redis_watchlist(user_id):
     """
-    Helper function to fetch watchlist data from the database and update Redis.
+    Helper function to fetch watchlist data from database and update Redis.
+    
+    Args:
+        user_id (int): The user ID whose watchlist needs to be updated
     """
-    watchlists = Watchlist.query.filter_by(user_id=user_id).all()
-    watchlists_data = []
+    try:
+        watchlists = Watchlist.query.filter_by(user_id=user_id).all()
+        watchlists_data = []
 
-    for watchlist in watchlists:
-        items = WatchlistItem.query.filter_by(watchlist_id=watchlist.id).all()
-        items_data = []
-
-        for item in items:
-            items_data.append({
+        for watchlist in watchlists:
+            items = WatchlistItem.query.filter_by(watchlist_id=watchlist.id).all()
+            items_data = [{
                 'id': item.id,
                 'symbol': item.symbol,
                 'name': item.name,
@@ -183,14 +389,138 @@ def update_redis_watchlist(user_id):
                 'instrumenttype': item.instrumenttype,
                 'exch_seg': item.exch_seg,
                 'tick_size': item.tick_size
+            } for item in items]
+
+            watchlists_data.append({
+                'id': watchlist.id,
+                'name': watchlist.name,
+                'items': items_data
             })
 
-        watchlists_data.append({
-            'id': watchlist.id,
-            'name': watchlist.name,
-            'items': items_data
-        })
+        # Update Redis with the fresh data
+        redis_key = f'user:{user_id}:watchlists'
+        redis_client.set(redis_key, json.dumps(watchlists_data))
+        return True
 
-    # Update Redis with the fresh watchlists data
-    redis_key = f'user:{user_id}:watchlists'
-    redis_client.set(redis_key, json.dumps(watchlists_data))
+    except Exception as e:
+        print(f"Error updating Redis watchlist: {str(e)}")
+        return False
+
+def get_user_watchlist_settings(user_id):
+    """
+    Get user's watchlist display settings from Redis.
+    
+    Args:
+        user_id (int): The user ID whose settings need to be retrieved
+        
+    Returns:
+        dict: The user's watchlist settings
+    """
+    settings_key = f'user:{user_id}:watchlist_settings'
+    settings = redis_client.hgetall(settings_key)
+    
+    if not settings:
+        # Set default settings if none exist
+        default_settings = {
+            'show_ltp_change': 'true',
+            'show_ltp_change_percent': 'true',
+            'show_holdings': 'true'
+        }
+        redis_client.hmset(settings_key, default_settings)
+        return default_settings
+    
+    return settings
+
+def validate_watchlist_limit(user_id):
+    """
+    Check if user has reached the maximum watchlist limit.
+    
+    Args:
+        user_id (int): The user ID to check
+        
+    Returns:
+        bool: True if user can create more watchlists, False otherwise
+    """
+    watchlist_count = Watchlist.query.filter_by(user_id=user_id).count()
+    return watchlist_count < 5
+
+def cleanup_user_data(user_id):
+    """
+    Clean up all Redis data for a user.
+    Used when logging out or deactivating account.
+    
+    Args:
+        user_id (int): The user ID whose data needs to be cleaned
+    """
+    try:
+        # Remove watchlist data
+        redis_client.delete(f'user:{user_id}:watchlists')
+        # Remove settings
+        redis_client.delete(f'user:{user_id}:watchlist_settings')
+        return True
+    except Exception as e:
+        print(f"Error cleaning up user data: {str(e)}")
+        return False
+
+def get_watchlist_summary(watchlist_id):
+    """
+    Get a summary of watchlist items including total items and market segments.
+    
+    Args:
+        watchlist_id (int): The watchlist ID to summarize
+        
+    Returns:
+        dict: Summary information about the watchlist
+    """
+    try:
+        items = WatchlistItem.query.filter_by(watchlist_id=watchlist_id).all()
+        
+        # Count items by exchange segment
+        segment_counts = {}
+        for item in items:
+            segment_counts[item.exch_seg] = segment_counts.get(item.exch_seg, 0) + 1
+            
+        return {
+            'total_items': len(items),
+            'segment_breakdown': segment_counts
+        }
+    except Exception as e:
+        print(f"Error getting watchlist summary: {str(e)}")
+        return None
+
+def validate_watchlist_item(watchlist_id, symbol, exch_seg):
+    """
+    Validate if an item can be added to a watchlist.
+    
+    Args:
+        watchlist_id (int): The watchlist ID
+        symbol (str): The symbol to add
+        exch_seg (str): The exchange segment
+        
+    Returns:
+        tuple: (bool, str) - (is_valid, error_message)
+    """
+    try:
+        # Check if item already exists
+        existing_item = WatchlistItem.query.filter_by(
+            watchlist_id=watchlist_id,
+            symbol=symbol,
+            exch_seg=exch_seg
+        ).first()
+        
+        if existing_item:
+            return False, "Item already exists in watchlist"
+            
+        # Verify instrument exists
+        instrument = Instrument.query.filter_by(
+            symbol=symbol,
+            exch_seg=exch_seg
+        ).first()
+        
+        if not instrument:
+            return False, "Invalid symbol or exchange segment"
+            
+        return True, ""
+        
+    except Exception as e:
+        return False, str(e)

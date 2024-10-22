@@ -3,78 +3,182 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.13/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <title>{{ title if title else 'Open Terminal' }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        // Add custom colors if needed
+                    }
+                }
+            }
+        }
+    </script>
     <style>
+        /* Custom scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: hsl(var(--b3));
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: hsl(var(--bc / 0.3));
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: hsl(var(--bc / 0.5));
+        }
+
+        /* Ensure consistent height */
         html, body {
             height: 100%;
+            overflow: hidden;
         }
-        body {
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-        main {
-            flex-grow: 1;
+
+        /* Main content area scrolling */
+        .content-area {
+            height: calc(100vh - 4rem); /* Adjust based on your navbar height */
+            overflow-y: auto;
         }
     </style>
 </head>
-<body class="bg-gray-900 text-white">
-    <!-- Navigation Menu -->
-    <nav class="bg-gray-800 shadow-md py-4">
-        <div class="container mx-auto flex justify-between items-center">
-            <div class="text-2xl font-bold text-white">
-                <a href="/" class="hover:text-blue-400">Open Terminal</a>
-            </div>
-            <div class="space-x-6 text-lg">
-                {% if session.get('client_id') %}
-                    <!-- Links for logged-in users -->
-                    <a href="/dashboard" class="text-white hover:text-blue-400">Dashboard</a>
-                    <a href="/orderbook" class="text-white hover:text-blue-400">Order Book</a>
-                    <a href="/tradebook" class="text-white hover:text-blue-400">Trade Book</a>
-                    <a href="/positions" class="text-white hover:text-blue-400">Positions</a>
-                    <a href="/holdings" class="text-white hover:text-blue-400">Holdings</a>
-                    <a href="/funds" class="text-white hover:text-blue-400">Funds</a>
-                    <a href="/logout" class="text-white hover:text-blue-400">Logout</a>
-                {% else %}
-                    <!-- Links for non-logged-in users -->
-                    <a href="/" class="text-white hover:text-blue-400">Home</a>
-                    <a href="/about" class="text-white hover:text-blue-400">About</a>
-                    <a href="/login" class="text-white hover:text-blue-400">Login</a>
-                    <a href="/register" class="text-white hover:text-blue-400">Register</a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
-    
-
-    <!-- Flash Messages -->
-    <div class="container mx-auto mt-4">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="space-y-4">
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }} shadow-lg">
-                            <div>
-                                <span>{{ message }}</span>
-                            </div>
-                        </div>
-                    {% endfor %}
+<body class="bg-base-100 text-base-content">
+    <div class="drawer drawer-mobile">
+        <!-- Drawer toggle for mobile -->
+        <input id="main-drawer" type="checkbox" class="drawer-toggle" />
+        
+        <div class="drawer-content flex flex-col">
+            <!-- Navbar -->
+            <div class="navbar bg-base-300 shadow-lg z-50">
+                <div class="flex-none lg:hidden">
+                    <label for="main-drawer" class="btn btn-square btn-ghost">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </label>
                 </div>
-            {% endif %}
-        {% endwith %}
+
+                <!-- Brand -->
+                <div class="flex-1">
+                    <a href="/" class="btn btn-ghost normal-case text-xl">Open Terminal</a>
+                </div>
+
+                <!-- Navigation Links - Desktop -->
+                <div class="flex-none hidden lg:block">
+                    <ul class="menu menu-horizontal px-1 gap-2">
+                        {% if session.get('client_id') %}
+                            <li><a href="/dashboard" class="btn btn-sm btn-ghost">Dashboard</a></li>
+                            <li><a href="/orderbook" class="btn btn-sm btn-ghost">Order Book</a></li>
+                            <li><a href="/tradebook" class="btn btn-sm btn-ghost">Trade Book</a></li>
+                            <li><a href="/positions" class="btn btn-sm btn-ghost">Positions</a></li>
+                            <li><a href="/holdings" class="btn btn-sm btn-ghost">Holdings</a></li>
+                            <li><a href="/funds" class="btn btn-sm btn-ghost">Funds</a></li>
+                        {% else %}
+                            <li><a href="/" class="btn btn-sm btn-ghost">Home</a></li>
+                            <li><a href="/about" class="btn btn-sm btn-ghost">About</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+
+                <!-- User Menu -->
+                <div class="flex-none">
+                    <div class="dropdown dropdown-end">
+                        <label tabindex="0" class="btn btn-ghost btn-circle">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" />
+                            </svg>
+                        </label>
+                        <ul tabindex="0" class="menu menu-compact dropdown-content mt-3 p-2 shadow bg-base-200 rounded-box w-52">
+                            {% if session.get('client_id') %}
+                                <li><a href="/profile">Profile</a></li>
+                                <li><a href="/settings">Settings</a></li>
+                                <li><a href="/logout">Logout</a></li>
+                            {% else %}
+                                <li><a href="/login">Login</a></li>
+                                <li><a href="/register">Register</a></li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flash Messages -->
+            <div class="container mx-auto px-4 mt-4">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} shadow-lg mb-4">
+                                <div>
+                                    {% if category == 'success' %}
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    {% elif category == 'error' or category == 'danger' %}
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    {% else %}
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current flex-shrink-0 w-6 h-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    {% endif %}
+                                    <span>{{ message }}</span>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            </div>
+
+            <!-- Main Content Area -->
+            <main class="content-area">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+
+        <!-- Drawer Side - Mobile Navigation -->
+        <div class="drawer-side">
+            <label for="main-drawer" class="drawer-overlay"></label>
+            <ul class="menu p-4 w-80 bg-base-200">
+                {% if session.get('client_id') %}
+                    <li><a href="/dashboard">Dashboard</a></li>
+                    <li><a href="/orderbook">Order Book</a></li>
+                    <li><a href="/tradebook">Trade Book</a></li>
+                    <li><a href="/positions">Positions</a></li>
+                    <li><a href="/holdings">Holdings</a></li>
+                    <li><a href="/funds">Funds</a></li>
+                    <li class="divider"></li>
+                    <li><a href="/profile">Profile</a></li>
+                    <li><a href="/settings">Settings</a></li>
+                    <li><a href="/logout">Logout</a></li>
+                {% else %}
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/about">About</a></li>
+                    <li class="divider"></li>
+                    <li><a href="/login">Login</a></li>
+                    <li><a href="/register">Register</a></li>
+                {% endif %}
+            </ul>
+        </div>
     </div>
 
-    <!-- Main Content -->
-    <main class="container mx-auto mt-10">
-        {% block content %}{% endblock %}
-    </main>
-
-    <!-- Footer -->
-    <footer class="footer p-4 bg-gray-800 text-white w-full flex justify-center items-center">
-        <p class="text-center">&copy; 2024 - OpenTerminal</p>
+    <!-- Footer - Only shown on pages that need it -->
+    {% if show_footer %}
+    <footer class="footer footer-center p-4 bg-base-300 text-base-content">
+        <div>
+            <p>Copyright © {{ now.year }} - OpenTerminal. All rights reserved.</p>
+        </div>
     </footer>
+    {% endif %}
 </body>
 </html>
