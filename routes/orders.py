@@ -51,6 +51,7 @@ def orderbook():
         res = conn.getresponse()
         data = res.read()
         response_json = json.loads(data.decode("utf-8"))
+        print(response_json)
 
         if response_json.get('status') and response_json['status'] == True:
             order_data = response_json['data']

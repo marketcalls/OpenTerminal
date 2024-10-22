@@ -29,9 +29,8 @@
                 <a href="/" class="hover:text-blue-400">Open Terminal</a>
             </div>
             <div class="space-x-6 text-lg">
-                <a href="/" class="text-white hover:text-blue-400">Home</a>
-                <a href="/about" class="text-white hover:text-blue-400">About</a>
                 {% if session.get('client_id') %}
+                    <!-- Links for logged-in users -->
                     <a href="/dashboard" class="text-white hover:text-blue-400">Dashboard</a>
                     <a href="/orderbook" class="text-white hover:text-blue-400">Order Book</a>
                     <a href="/tradebook" class="text-white hover:text-blue-400">Trade Book</a>
@@ -40,12 +39,16 @@
                     <a href="/funds" class="text-white hover:text-blue-400">Funds</a>
                     <a href="/logout" class="text-white hover:text-blue-400">Logout</a>
                 {% else %}
+                    <!-- Links for non-logged-in users -->
+                    <a href="/" class="text-white hover:text-blue-400">Home</a>
+                    <a href="/about" class="text-white hover:text-blue-400">About</a>
                     <a href="/login" class="text-white hover:text-blue-400">Login</a>
                     <a href="/register" class="text-white hover:text-blue-400">Register</a>
                 {% endif %}
             </div>
         </div>
     </nav>
+    
 
     <!-- Flash Messages -->
     <div class="container mx-auto mt-4">

@@ -13,47 +13,13 @@ def dashboard():
 
     user = User.query.filter_by(client_id=session['client_id']).first()
 
-    # Fetch watchlist data from Redis
+    # Always fetch data from the database and update Redis
+    update_redis_watchlist(user.id)
+
+    # Fetch updated data from Redis
     redis_key = f'user:{user.id}:watchlists'
     watchlists_data = redis_client.get(redis_key)
-    
-    if watchlists_data is None:
-        # If data is not in Redis, fetch from database and store in Redis
-        watchlists = Watchlist.query.filter_by(user_id=user.id).all()
-        watchlists_data = []
-        for watchlist in watchlists:
-            items = WatchlistItem.query.filter_by(watchlist_id=watchlist.id).all()
-            items_data = []
-            for item in items:
-                items_data.append({
-                    'id': item.id,
-                    'symbol': item.symbol,
-                    'name': item.name,
-                    'token': item.token,
-                    'expiry': item.expiry,
-                    'strike': item.strike,
-                    'lotsize': item.lotsize,
-                    'instrumenttype': item.instrumenttype,
-                    'exch_seg': item.exch_seg,
-                    'tick_size': item.tick_size
-                })
-            watchlists_data.append({
-                'id': watchlist.id,
-                'name': watchlist.name,
-                'items': items_data  # Ensure this is a list
-            })
-        redis_client.set(redis_key, json.dumps(watchlists_data))
-    else:
-        watchlists_data = json.loads(watchlists_data)
-
-    # Ensure items is a list for each watchlist (to avoid method error)
-    for watchlist in watchlists_data:
-        if not isinstance(watchlist['items'], list):
-            watchlist['items'] = []
-
-    # Print the structure of watchlists_data for debugging
-    print("Watchlists data structure:")
-    print(json.dumps(watchlists_data, indent=2))
+    watchlists_data = json.loads(watchlists_data) if watchlists_data else []
 
     return render_template('dashboard.html', watchlists=watchlists_data)
 
@@ -61,45 +27,68 @@ def dashboard():
 def create_watchlist():
     if 'client_id' not in session:
         return jsonify({'status': 'error', 'message': 'Not logged in'}), 401
+
     user = User.query.filter_by(client_id=session['client_id']).first()
     data = request.get_json()
     name = data.get('name')
     if not name:
         return jsonify({'status': 'error', 'message': 'Watchlist name is required'}), 400
+
     watchlist_count = Watchlist.query.filter_by(user_id=user.id).count()
     if watchlist_count >= 5:
         return jsonify({'status': 'error', 'message': 'Maximum 5 watchlists allowed'}), 400
+
+    # Create a new watchlist
     new_watchlist = Watchlist(name=name, user_id=user.id)
     db.session.add(new_watchlist)
     db.session.commit()
+
+    # Update Redis with fresh data
+    update_redis_watchlist(user.id)
+
     return jsonify({'status': 'success', 'watchlist_id': new_watchlist.id})
 
 @dashboard_bp.route('/delete_watchlist', methods=['POST'])
 def delete_watchlist():
     if 'client_id' not in session:
         return jsonify({'status': 'error', 'message': 'Not logged in'}), 401
+
+    user = User.query.filter_by(client_id=session['client_id']).first()
     data = request.get_json()
     watchlist_id = data.get('watchlist_id')
-    watchlist = Watchlist.query.filter_by(id=watchlist_id).first()
+
+    watchlist = Watchlist.query.filter_by(id=watchlist_id, user_id=user.id).first()
     if not watchlist:
         return jsonify({'status': 'error', 'message': 'Watchlist not found'}), 404
+
+    # Delete watchlist from database
     db.session.delete(watchlist)
     db.session.commit()
+
+    # Update Redis with fresh data
+    update_redis_watchlist(user.id)
+
     return jsonify({'status': 'success'})
 
 @dashboard_bp.route('/add_watchlist_item', methods=['POST'])
 def add_watchlist_item():
     if 'client_id' not in session:
         return jsonify({'status': 'error', 'message': 'Not logged in'}), 401
+
+    user = User.query.filter_by(client_id=session['client_id']).first()
     data = request.get_json()
     watchlist_id = data.get('watchlist_id')
     symbol = data.get('symbol')
     exch_seg = data.get('exch_seg')
+
     if not symbol or not exch_seg:
         return jsonify({'status': 'error', 'message': 'Symbol and Exchange Segment are required'}), 400
+
     instrument = Instrument.query.filter_by(symbol=symbol, exch_seg=exch_seg).first()
     if not instrument:
         return jsonify({'status': 'error', 'message': 'Instrument not found'}), 404
+
+    # Create a new watchlist item
     new_item = WatchlistItem(
         watchlist_id=watchlist_id,
         symbol=instrument.symbol,
@@ -114,19 +103,32 @@ def add_watchlist_item():
     )
     db.session.add(new_item)
     db.session.commit()
+
+    # Update Redis with fresh data
+    update_redis_watchlist(user.id)
+
     return jsonify({'status': 'success', 'item_id': new_item.id})
 
 @dashboard_bp.route('/remove_watchlist_item', methods=['POST'])
 def remove_watchlist_item():
     if 'client_id' not in session:
         return jsonify({'status': 'error', 'message': 'Not logged in'}), 401
+
+    user = User.query.filter_by(client_id=session['client_id']).first()
     data = request.get_json()
     item_id = data.get('item_id')
+
     item = WatchlistItem.query.filter_by(id=item_id).first()
     if not item:
         return jsonify({'status': 'error', 'message': 'Item not found'}), 404
+
+    # Delete item from database
     db.session.delete(item)
     db.session.commit()
+
+    # Update Redis with fresh data
+    update_redis_watchlist(user.id)
+
     return jsonify({'status': 'success'})
 
 @dashboard_bp.route('/search_symbols', methods=['GET'])
@@ -134,9 +136,11 @@ def search_symbols():
     query = request.args.get('q', '')
     if not query:
         return jsonify({'results': []})
+
     instruments = Instrument.query.filter(
         (Instrument.symbol.ilike(f'%{query}%')) | (Instrument.name.ilike(f'%{query}%'))
     ).limit(10).all()
+
     results = []
     for instrument in instruments:
         results.append({
@@ -144,6 +148,7 @@ def search_symbols():
             'name': instrument.name,
             'exch_seg': instrument.exch_seg
         })
+
     return jsonify({'results': results})
 
 @dashboard_bp.route('/get_indices')
@@ -154,3 +159,38 @@ def get_indices():
         'sensex': '81,224'
     }
     return jsonify(data)
+
+def update_redis_watchlist(user_id):
+    """
+    Helper function to fetch watchlist data from the database and update Redis.
+    """
+    watchlists = Watchlist.query.filter_by(user_id=user_id).all()
+    watchlists_data = []
+
+    for watchlist in watchlists:
+        items = WatchlistItem.query.filter_by(watchlist_id=watchlist.id).all()
+        items_data = []
+
+        for item in items:
+            items_data.append({
+                'id': item.id,
+                'symbol': item.symbol,
+                'name': item.name,
+                'token': item.token,
+                'expiry': item.expiry,
+                'strike': item.strike,
+                'lotsize': item.lotsize,
+                'instrumenttype': item.instrumenttype,
+                'exch_seg': item.exch_seg,
+                'tick_size': item.tick_size
+            })
+
+        watchlists_data.append({
+            'id': watchlist.id,
+            'name': watchlist.name,
+            'items': items_data
+        })
+
+    # Update Redis with the fresh watchlists data
+    redis_key = f'user:{user_id}:watchlists'
+    redis_client.set(redis_key, json.dumps(watchlists_data))
