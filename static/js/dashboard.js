@@ -61,8 +61,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 30000);
     }
 
-    function subscribeToWatchlistItems() {
-        const watchlistItems = document.querySelectorAll('[data-token]');
+    function subscribeToWatchlistItems(singleItem = null) {
+        const watchlistItems = singleItem ? [singleItem] : document.querySelectorAll('[data-token]');
         const exchangeTokens = new Map();
 
         // Group tokens by exchange
@@ -126,6 +126,15 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('watchlistSettingsUpdated', function(event) {
         const newSettings = event.detail;
         MarketDataUpdater.updateSettings(newSettings);
+    });
+
+    // Listen for new symbol additions
+    window.addEventListener('symbolAdded', function(event) {
+        const newSymbolData = event.detail;
+        const newSymbolElement = document.querySelector(`[data-token="${newSymbolData.token}"]`);
+        if (newSymbolElement) {
+            subscribeToWatchlistItems(newSymbolElement);
+        }
     });
 
     // Update indices periodically

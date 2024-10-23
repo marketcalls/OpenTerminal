@@ -100,11 +100,10 @@ const WatchlistManager = {
             if (response.status === 'success') {
                 location.reload();
             } else {
-                alert(response.message || 'Error creating watchlist');
+                console.error('Error creating watchlist:', response.message);
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Failed to create watchlist');
         }
     },
 
@@ -132,11 +131,12 @@ const WatchlistManager = {
                     });
 
                     if (response.status === 'success') {
-                        location.reload();
+                        nameElement.textContent = newName;
+                    } else {
+                        console.error('Error updating watchlist name:', response.message);
                     }
                 } catch (error) {
                     console.error('Error:', error);
-                    alert('Failed to update watchlist name');
                 }
             }
             input.replaceWith(nameElement);
@@ -165,11 +165,10 @@ const WatchlistManager = {
             if (response.status === 'success') {
                 location.reload();
             } else {
-                alert(response.message || 'Error deleting watchlist');
+                console.error('Error deleting watchlist:', response.message);
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Failed to delete watchlist');
         }
     },
 
@@ -188,14 +187,48 @@ const WatchlistManager = {
             });
 
             if (response.status === 'success') {
-                location.reload();
+                this.addSymbolToDOM(response.data);
+                document.getElementById('search-results').innerHTML = '';
+                document.getElementById('search-symbol-input').value = '';
             } else {
-                alert(response.message || 'Error adding symbol to watchlist');
+                console.error('Error adding symbol to watchlist:', response.message);
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Failed to add symbol to watchlist');
         }
+    },
+
+    addSymbolToDOM(symbolData) {
+        const activeWatchlist = document.querySelector('.tab-active');
+        const watchlistContent = document.getElementById(`watchlist-${activeWatchlist.dataset.watchlistId}`);
+        const symbolList = watchlistContent.querySelector('ul');
+
+        const newSymbolItem = document.createElement('li');
+        newSymbolItem.className = 'flex items-center justify-between p-2 hover:bg-base-200';
+        newSymbolItem.setAttribute('data-token', symbolData.token);
+        newSymbolItem.innerHTML = `
+            <div>
+                <span class="font-medium">${symbolData.symbol}</span>
+                <span class="text-xs text-base-content/70">${symbolData.exch_seg}</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="ltp">--</span>
+                <span class="change hidden">--</span>
+                <span class="change-percent hidden">--</span>
+                <button class="remove-item-btn btn btn-ghost btn-xs" data-item-id="${symbolData.id}">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+
+        symbolList.appendChild(newSymbolItem);
+
+        // Add event listener for the new remove button
+        const removeBtn = newSymbolItem.querySelector('.remove-item-btn');
+        removeBtn.addEventListener('click', (e) => this.removeSymbol(e));
+
+        // Trigger a custom event to notify that a new symbol has been added
+        window.dispatchEvent(new CustomEvent('symbolAdded', { detail: symbolData }));
     },
 
     async removeSymbol(event) {
@@ -211,11 +244,10 @@ const WatchlistManager = {
             if (response.status === 'success') {
                 event.currentTarget.closest('li').remove();
             } else {
-                alert(response.message || 'Error removing symbol from watchlist');
+                console.error('Error removing symbol from watchlist:', response.message);
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Failed to remove symbol from watchlist');
         }
     },
 
