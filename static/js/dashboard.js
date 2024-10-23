@@ -112,8 +112,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Initialize modules
+    const watchlistSettings = {
+        show_ltp_change: document.getElementById('show-ltp-change').checked,
+        show_ltp_change_percent: document.getElementById('show-ltp-change-percent').checked,
+        show_holdings: document.getElementById('show-holdings').checked
+    };
+
     WatchlistManager.init();
+    MarketDataUpdater.init(watchlistSettings);
     initializeWebSocket();
+
+    // Listen for watchlist settings updates
+    window.addEventListener('watchlistSettingsUpdated', function(event) {
+        const newSettings = event.detail;
+        MarketDataUpdater.updateSettings(newSettings);
+    });
 
     // Update indices periodically
     function updateIndices() {

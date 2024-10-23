@@ -3,6 +3,23 @@
 const MarketDataUpdater = {
     // Map to cache previous values for comparison
     previousValues: new Map(),
+    settings: {},
+
+    init(settings) {
+        this.settings = settings;
+    },
+
+    updateSettings(newSettings) {
+        this.settings = newSettings;
+        // Re-apply settings to all existing watchlist items
+        document.querySelectorAll('[data-token]').forEach(item => {
+            const tokenString = item.dataset.token;
+            const data = this.previousValues.get(tokenString);
+            if (data) {
+                this.updatePriceInfo(item, data);
+            }
+        });
+    },
 
     updateData(decodedData) {
         const { tokenString } = decodedData;
@@ -15,10 +32,7 @@ const MarketDataUpdater = {
         this.updateMarketStats(watchlistItem, decodedData);
         
         // Cache the current values
-        this.previousValues.set(tokenString, {
-            ltp: decodedData.lastTradedPrice,
-            close: decodedData.closePrice
-        });
+        this.previousValues.set(tokenString, decodedData);
     },
     
     updatePriceInfo(element, data) {
@@ -27,24 +41,27 @@ const MarketDataUpdater = {
         const changePercentElement = element.querySelector('.change-percent');
         
         if (ltpElement) {
-            const previousValue = this.previousValues.get(data.tokenString)?.ltp;
+            const previousValue = this.previousValues.get(data.tokenString)?.lastTradedPrice;
             const priceChangeClass = this.getPriceChangeClass(data.lastTradedPrice, previousValue);
             
             ltpElement.textContent = data.lastTradedPrice.toFixed(2);
             ltpElement.className = `ltp ${priceChangeClass}`;
         }
         
-        if (changeElement && changePercentElement) {
-            const change = data.lastTradedPrice - data.closePrice;
-            const changePercent = (change / data.closePrice) * 100;
-            
-            const changeClass = change >= 0 ? 'text-green-500' : 'text-red-500';
-            
+        const change = data.lastTradedPrice - data.closePrice;
+        const changePercent = (change / data.closePrice) * 100;
+        const changeClass = change >= 0 ? 'text-green-500' : 'text-red-500';
+        
+        if (changeElement) {
             changeElement.textContent = change.toFixed(2);
             changeElement.className = `change ${changeClass}`;
-            
-            changePercentElement.textContent = `${changePercent.toFixed(2)}%`;
+            changeElement.style.display = this.settings.show_ltp_change ? 'inline' : 'none';
+        }
+        
+        if (changePercentElement) {
+            changePercentElement.textContent = `(${changePercent.toFixed(2)}%)`;
             changePercentElement.className = `change-percent ${changeClass}`;
+            changePercentElement.style.display = this.settings.show_ltp_change_percent ? 'inline' : 'none';
         }
     },
     

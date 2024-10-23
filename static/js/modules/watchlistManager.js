@@ -252,6 +252,8 @@ const WatchlistManager = {
 
             if (response.status === 'success') {
                 this.updateDisplaySettings(settings);
+                // Dispatch a custom event with the new settings
+                window.dispatchEvent(new CustomEvent('watchlistSettingsUpdated', { detail: settings }));
             }
         } catch (error) {
             console.error('Error updating settings:', error);
