@@ -23,13 +23,16 @@ const MarketDataUpdater = {
 
     updateData(decodedData) {
         const { tokenString } = decodedData;
-        const watchlistItem = document.querySelector(`[data-token="${tokenString}"]`);
+        const watchlistItems = document.querySelectorAll(`[data-token="${tokenString}"]`);
         
-        if (!watchlistItem) return;
+        if (watchlistItems.length === 0) return;
         
-        this.updatePriceInfo(watchlistItem, decodedData);
+        watchlistItems.forEach(watchlistItem => {
+            this.updatePriceInfo(watchlistItem, decodedData);
+            this.updateMarketStats(watchlistItem, decodedData);
+        });
+
         this.updateMarketDepth(tokenString, decodedData);
-        this.updateMarketStats(watchlistItem, decodedData);
         
         // Cache the current values
         this.previousValues.set(tokenString, decodedData);
