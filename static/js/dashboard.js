@@ -121,12 +121,12 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.nifty) {
-                    document.getElementById('nifty-value').textContent = data.nifty;
-                    document.getElementById('nifty-change').textContent = data.nifty_change;
+                    document.getElementById('nifty-value').textContent = data.nifty.value;
+                    document.getElementById('nifty-change').textContent = `${data.nifty.change} ${data.nifty.change_percent}`;
                 }
                 if (data.sensex) {
-                    document.getElementById('sensex-value').textContent = data.sensex;
-                    document.getElementById('sensex-change').textContent = data.sensex_change;
+                    document.getElementById('sensex-value').textContent = data.sensex.value;
+                    document.getElementById('sensex-change').textContent = `${data.sensex.change} ${data.sensex.change_percent}`;
                 }
             })
             .catch(error => console.error('Error updating indices:', error));

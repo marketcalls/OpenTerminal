@@ -227,33 +227,30 @@ def add_watchlist_item():
         db.session.commit()
 
         # Update Redis
-        item_data = {
-            'id': new_item.id,
-            'symbol': new_item.symbol,
-            'name': new_item.name,
-            'token': new_item.token,
-            'expiry': new_item.expiry,
-            'strike': new_item.strike,
-            'lotsize': new_item.lotsize,
-            'instrumenttype': new_item.instrumenttype,
-            'exch_seg': new_item.exch_seg,
-            'tick_size': new_item.tick_size
-        }
+        update_redis_watchlist(user.id)
 
-        redis_key = f'user:{user.id}:watchlists'
-        existing_data = redis_client.get(redis_key)
-        if existing_data:
-            watchlists_data = json.loads(existing_data)
-            for watchlist_data in watchlists_data:
-                if watchlist_data['id'] == watchlist_id:
-                    watchlist_data['items'].append(item_data)
-                    break
-            redis_client.set(redis_key, json.dumps(watchlists_data))
+        # Get updated watchlist content
+        watchlist_items = WatchlistItem.query.filter_by(watchlist_id=watchlist.id).all()
+        items_data = [{
+            'id': item.id,
+            'symbol': item.symbol,
+            'name': item.name,
+            'token': item.token,
+            'expiry': item.expiry,
+            'strike': item.strike,
+            'lotsize': item.lotsize,
+            'instrumenttype': item.instrumenttype,
+            'exch_seg': item.exch_seg,
+            'tick_size': item.tick_size
+        } for item in watchlist_items]
+
+        watchlist_content = render_template('watchlist_content.html', 
+                                            watchlist=watchlist, 
+                                            items=items_data)
 
         return jsonify({
             'status': 'success',
-            'item_id': new_item.id,
-            'data': item_data
+            'content': watchlist_content
         })
 
     except Exception as e:
@@ -713,3 +710,41 @@ def get_watchlist_tokens():
         print(f"Error getting watchlist tokens: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
     
+@dashboard_bp.route('/get_watchlist_content/<int:watchlist_id>', methods=['GET'])
+def get_watchlist_content(watchlist_id):
+    if 'client_id' not in session:
+        return jsonify({'status': 'error', 'message': 'Not logged in'}), 401
+
+    user = User.query.filter_by(client_id=session['client_id']).first()
+
+    try:
+        watchlist = Watchlist.query.filter_by(id=watchlist_id, user_id=user.id).first()
+        if not watchlist:
+            return jsonify({'status': 'error', 'message': 'Watchlist not found'}), 404
+
+        watchlist_items = WatchlistItem.query.filter_by(watchlist_id=watchlist.id).all()
+        
+        items_data = [{
+            'id': item.id,
+            'symbol': item.symbol,
+            'name': item.name,
+            'token': item.token,
+            'expiry': item.expiry,
+            'strike': item.strike,
+            'lotsize': item.lotsize,
+            'instrumenttype': item.instrumenttype,
+            'exch_seg': item.exch_seg,
+            'tick_size': item.tick_size
+        } for item in watchlist_items]
+
+        watchlist_content = render_template('watchlist_content.html', 
+                                            watchlist=watchlist, 
+                                            items=items_data)
+
+        return jsonify({
+            'status': 'success',
+            'content': watchlist_content
+        })
+
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
