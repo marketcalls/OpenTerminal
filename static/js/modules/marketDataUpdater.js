@@ -11,7 +11,7 @@ const MarketDataUpdater = {
         if (!watchlistItem) return;
         
         this.updatePriceInfo(watchlistItem, decodedData);
-        this.updateMarketDepth(watchlistItem, decodedData);
+        this.updateMarketDepth(tokenString, decodedData);
         this.updateMarketStats(watchlistItem, decodedData);
         
         // Cache the current values
@@ -48,37 +48,36 @@ const MarketDataUpdater = {
         }
     },
     
-    updateMarketDepth(element, data) {
-        const depthTableId = `depth-${element.id}`;
-        const depthTable = document.getElementById(depthTableId);
+    updateMarketDepth(tokenString, data) {
+        const depthDiv = document.getElementById(`depth-${tokenString}`);
+        if (!depthDiv) return;
         
-        if (!depthTable || !data.buyOrders || !data.sellOrders) return;
+        const tbody = depthDiv.querySelector('.depth-data');
+        if (!tbody) return;
         
-        const tbody = depthTable.querySelector('tbody');
+        if (!data.bestBids || !data.bestAsks) return;
+        
         tbody.innerHTML = '';
         
-        const maxDepth = Math.max(data.buyOrders.length, data.sellOrders.length);
+        // Ensure we have 5 rows by padding with empty data if necessary
+        const bids = data.bestBids.slice(0, 5).concat(Array(5).fill({ qty: '--', numOrders: '--', price: '--' })).slice(0, 5);
+        const asks = data.bestAsks.slice(0, 5).concat(Array(5).fill({ qty: '--', numOrders: '--', price: '--' })).slice(0, 5);
         
-        for (let i = 0; i < maxDepth; i++) {
-            const buyOrder = data.buyOrders[i] || { quantity: '--', price: '--', numOrders: '--' };
-            const sellOrder = data.sellOrders[i] || { quantity: '--', price: '--', numOrders: '--' };
+        for (let i = 0; i < 5; i++) {
+            const bid = bids[i];
+            const ask = asks[i];
             
-            const row = this.createDepthRow(buyOrder, sellOrder);
-            tbody.insertAdjacentHTML('beforeend', row);
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="p-2 text-right">${this.formatNumber(bid.qty)}</td>
+                <td class="p-2 text-right">${bid.numOrders}</td>
+                <td class="p-2 text-right text-green-500 font-medium">${typeof bid.price === 'number' ? bid.price.toFixed(2) : '--'}</td>
+                <td class="p-2 text-right text-red-500 font-medium">${typeof ask.price === 'number' ? ask.price.toFixed(2) : '--'}</td>
+                <td class="p-2 text-right">${ask.numOrders}</td>
+                <td class="p-2 text-right">${this.formatNumber(ask.qty)}</td>
+            `;
+            tbody.appendChild(row);
         }
-    },
-    
-    createDepthRow(buyOrder, sellOrder) {
-        return `
-            <tr>
-                <td class="p-2 text-right">${buyOrder.quantity}</td>
-                <td class="p-2 text-right">${buyOrder.numOrders}</td>
-                <td class="p-2 text-right text-green-500 font-medium">${buyOrder.price}</td>
-                <td class="p-2 text-right text-red-500 font-medium">${sellOrder.price}</td>
-                <td class="p-2 text-right">${sellOrder.numOrders}</td>
-                <td class="p-2 text-right">${sellOrder.quantity}</td>
-            </tr>
-        `;
     },
     
     updateMarketStats(element, data) {
@@ -109,7 +108,7 @@ const MarketDataUpdater = {
                 return this.formatVolume(value);
             case 'total-buy-qty':
             case 'total-sell-qty':
-                return this.formatQuantity(value);
+                return this.formatNumber(value);
             default:
                 return value.toFixed(2);
         }
@@ -126,8 +125,9 @@ const MarketDataUpdater = {
         return volume.toString();
     },
     
-    formatQuantity(qty) {
-        return qty.toLocaleString();
+    formatNumber(num) {
+        if (typeof num !== 'number' || isNaN(num)) return '--';
+        return num.toLocaleString('en-IN');
     },
     
     getPriceChangeClass(currentPrice, previousPrice) {
