@@ -58,6 +58,7 @@ openterminal/
 │   └── js/
 │       ├── dashboard.js       # Main dashboard logic
 │       └── modules/
+│           ├── marketDataDecoder.js  # Real-time Websocket decoder
 │           ├── marketDataUpdater.js  # Real-time updates
 │           └── watchlistManager.js   # Watchlist operations
 ├── templates/           # HTML templates
