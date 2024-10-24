@@ -110,7 +110,7 @@ const WatchlistManager = {
         
         document.querySelectorAll('.delete-watchlist-btn').forEach(btn =>
             btn.addEventListener('click', (e) => this.deleteWatchlist(e)));
-
+            
         // Updated tab switching handler
         document.querySelectorAll('.tab-btn').forEach(tab =>
             tab.addEventListener('click', async (e) => {
@@ -355,8 +355,12 @@ const WatchlistManager = {
     },
 
     async deleteWatchlist(event) {
+        event.preventDefault();
         const watchlistId = event.currentTarget.dataset.watchlistId;
-        if (!confirm('Are you sure you want to delete this watchlist?')) return;
+        
+        if (!confirm('Are you sure you want to delete this watchlist?')) {
+            return;
+        }
 
         try {
             const response = await this.makeRequest('/delete_watchlist', {
@@ -365,12 +369,60 @@ const WatchlistManager = {
             });
 
             if (response.status === 'success') {
-                location.reload();
+                // Remove watchlist from active subscriptions
+                if (this.activeSubscriptions.has(watchlistId)) {
+                    const tokens = this.activeSubscriptions.get(watchlistId);
+                    await this.unsubscribeFromSymbols(tokens);
+                    this.activeSubscriptions.delete(watchlistId);
+                }
+
+                // Remove watchlist tab and content from DOM
+                const tab = document.querySelector(`[data-watchlist-id="${watchlistId}"]`);
+                const content = document.getElementById(`watchlist-${watchlistId}`);
+                const watchlistRow = document.getElementById(`watchlist-row-${watchlistId}`);
+                
+                if (tab) tab.remove();
+                if (content) content.remove();
+                if (watchlistRow) watchlistRow.remove();
+
+                // If this was the active tab, switch to another tab if available
+                if (tab?.classList.contains('tab-active')) {
+                    const remainingTab = document.querySelector('.tab-btn');
+                    if (remainingTab) {
+                        this.switchTab(remainingTab);
+                    } else {
+                        // No tabs left, show empty state
+                        const watchlistsDiv = document.getElementById('watchlists');
+                        if (watchlistsDiv) {
+                            watchlistsDiv.innerHTML = `
+                                <div class="text-center text-base-content/70 py-8">
+                                    <p class="mb-4">No watchlists created yet</p>
+                                    <p class="text-sm">Click the "Add" button to create your first watchlist</p>
+                                </div>
+                            `;
+                        }
+                    }
+                }
+
+                // Close the modal if it's open
+                const modal = document.getElementById('watchlist-modal');
+                if (modal) {
+                    modal.close();
+                }
+
+                // Optional: Show success message
+                const toast = document.createElement('div');
+                toast.className = 'toast toast-success';
+                toast.textContent = 'Watchlist deleted successfully';
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
             } else {
                 console.error('Error deleting watchlist:', response.message);
+                alert('Failed to delete watchlist. Please try again.');
             }
         } catch (error) {
             console.error('Error:', error);
+            alert('An error occurred while deleting the watchlist.');
         }
     },
 
