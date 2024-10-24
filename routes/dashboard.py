@@ -1,7 +1,10 @@
+# routes/dashboard.py
+
 from flask import Blueprint, render_template, session, redirect, url_for, flash, request, jsonify
 from models import User, Watchlist, WatchlistItem, Instrument
 from extensions import db, redis_client
 import json
+from datetime import datetime
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -174,6 +177,7 @@ def delete_watchlist():
         db.session.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+
 @dashboard_bp.route('/add_watchlist_item', methods=['POST'])
 def add_watchlist_item():
     if 'client_id' not in session:
@@ -226,38 +230,29 @@ def add_watchlist_item():
         db.session.commit()
 
         # Update Redis
-        item_data = {
-            'id': new_item.id,
-            'symbol': new_item.symbol,
-            'name': new_item.name,
-            'token': new_item.token,
-            'expiry': new_item.expiry,
-            'strike': new_item.strike,
-            'lotsize': new_item.lotsize,
-            'instrumenttype': new_item.instrumenttype,
-            'exch_seg': new_item.exch_seg,
-            'tick_size': new_item.tick_size
-        }
+        update_redis_watchlist(user.id)
 
-        redis_key = f'user:{user.id}:watchlists'
-        existing_data = redis_client.get(redis_key)
-        if existing_data:
-            watchlists_data = json.loads(existing_data)
-            for watchlist_data in watchlists_data:
-                if watchlist_data['id'] == watchlist_id:
-                    watchlist_data['items'].append(item_data)
-                    break
-            redis_client.set(redis_key, json.dumps(watchlists_data))
-
+        # Return the new item's data
         return jsonify({
             'status': 'success',
-            'item_id': new_item.id,
-            'data': item_data
+            'data': {
+                'id': new_item.id,
+                'symbol': new_item.symbol,
+                'name': new_item.name,
+                'token': new_item.token,
+                'expiry': new_item.expiry,
+                'strike': new_item.strike,
+                'lotsize': new_item.lotsize,
+                'instrumenttype': new_item.instrumenttype,
+                'exch_seg': new_item.exch_seg,
+                'tick_size': new_item.tick_size
+            }
         })
 
     except Exception as e:
         db.session.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 @dashboard_bp.route('/remove_watchlist_item', methods=['POST'])
 def remove_watchlist_item():
@@ -347,20 +342,85 @@ def search_symbols():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+# Add to dashboard.py
+
 @dashboard_bp.route('/get_indices')
 def get_indices():
-    # Fetch real-time data for NIFTY and SENSEX (Placeholder values used here)
+    """Get dummy index data with Redis caching"""
     try:
-        # In a real implementation, you would fetch this data from your data provider
+        # Try to get from Redis first
+        indices_key = "market:indices"
+        cached_data = redis_client.get(indices_key)
+        
+        if cached_data:
+            return jsonify(json.loads(cached_data))
+
+        # Dummy data (to be replaced with real API integration later)
         data = {
-            'nifty': '24,854',
-            'sensex': '81,224',
-            'nifty_change': '+120.45 (0.48%)',
-            'sensex_change': '+360.75 (0.44%)'
+            'nifty': {
+                'value': '24,435.50',
+                'change': '-36.60',
+                'change_percent': '(-0.15%)'
+            },
+            'sensex': {
+                'value': '51,244.50',
+                'change': '-12.65',
+                'change_percent': '(-0.02%)'
+            },
+            'last_updated': datetime.now().isoformat()
         }
+        
+        # Cache for 1 minute
+        redis_client.setex(
+            indices_key,
+            60,  # 60 seconds
+            json.dumps(data)
+        )
+        
         return jsonify(data)
+        
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        print(f"Error fetching indices: {str(e)}")
+        # Return dummy data even on error
+        return jsonify({
+            'nifty': {
+                'value': '24,435.50',
+                'change': '-36.60',
+                'change_percent': '(-0.15%)'
+            },
+            'sensex': {
+                'value': '51,244.50',
+                'change': '-12.65',
+                'change_percent': '(-0.02%)'
+            },
+            'last_updated': datetime.now().isoformat()
+        })
+
+# Add helper function to update indices (for future real-time updates)
+def update_indices_cache(new_data):
+    """Update indices data in Redis cache"""
+    try:
+        indices_key = "market:indices"
+        current_data = redis_client.get(indices_key)
+        
+        if current_data:
+            current_data = json.loads(current_data)
+            current_data.update(new_data)
+        else:
+            current_data = new_data
+            
+        current_data['last_updated'] = datetime.now().isoformat()
+        
+        redis_client.setex(
+            indices_key,
+            60,
+            json.dumps(current_data)
+        )
+        
+        return True
+    except Exception as e:
+        print(f"Error updating indices cache: {str(e)}")
+        return False
 
 
 # Add these helper functions at the end of dashboard.py
@@ -524,3 +584,164 @@ def validate_watchlist_item(watchlist_id, symbol, exch_seg):
         
     except Exception as e:
         return False, str(e)
+    
+    
+@dashboard_bp.route('/api/get_tokens', methods=['POST'])
+def get_tokens():
+    """Get WebSocket tokens for market data streaming"""
+    if 'client_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    try:
+        client_id = session['client_id']
+        
+        # First try to get from Redis
+        user_data = redis_client.hgetall(f"user:{client_id}")
+        
+        if user_data and user_data.get('feed_token'):
+            return jsonify({
+                'feed_token': user_data['feed_token'],
+                'api_key': user_data['api_key'],
+                'client_code': client_id
+            })
+        
+        # If not in Redis, get from database
+        user = User.query.filter_by(client_id=client_id).first()
+        if not user or not user.feed_token:
+            return jsonify({'error': 'Tokens not available'}), 404
+            
+        return jsonify({
+            'feed_token': user.feed_token,
+            'api_key': user.api_key,
+            'client_code': client_id
+        })
+        
+    except Exception as e:
+        print(f"Error fetching tokens: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+    
+
+# Update the exchange mapping in get_watchlist_tokens route
+
+@dashboard_bp.route('/api/get_watchlist_tokens', methods=['GET'])
+def get_watchlist_tokens():
+    """Get all watchlist tokens for WebSocket subscription"""
+    if 'client_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    try:
+        user = User.query.filter_by(client_id=session['client_id']).first()
+        
+        # Get from Redis first
+        redis_key = f'user:{user.id}:watchlists'
+        cached_data = redis_client.get(redis_key)
+        
+        if not cached_data:
+            # Update Redis cache from database
+            watchlists = Watchlist.query.filter_by(user_id=user.id).all()
+            watchlists_data = []
+            
+            for watchlist in watchlists:
+                items = WatchlistItem.query.filter_by(watchlist_id=watchlist.id).all()
+                watchlist_dict = {
+                    'id': watchlist.id,
+                    'name': watchlist.name,
+                    'items_list': [{
+                        'id': item.id,
+                        'symbol': item.symbol,
+                        'token': item.token,
+                        'exch_seg': item.exch_seg
+                    } for item in items]
+                }
+                watchlists_data.append(watchlist_dict)
+            
+            # Cache the data
+            redis_client.set(redis_key, json.dumps(watchlists_data))
+            cached_data = json.dumps(watchlists_data)
+
+        watchlists = json.loads(cached_data)
+
+        # Updated exchange mapping as per Smart API WebSocket 2.0
+        exch_map = {
+            'NSE': 1,     # nse_cm
+            'NFO': 2,     # nse_fo
+            'BSE': 3,     # bse_cm
+            'BFO': 4,     # bse_fo
+            'MCX': 5,     # mcx_fo
+            'NCX': 7,     # ncx_fo
+            'CDS': 13     # cde_fo
+        }
+        
+        # Format tokens by exchange
+        exchange_tokens = {}
+        for watchlist in watchlists:
+            for item in watchlist.get('items_list', []):
+                exch_type = exch_map.get(item['exch_seg'])
+                if exch_type:
+                    if exch_type not in exchange_tokens:
+                        exchange_tokens[exch_type] = []
+                    if item['token'] not in exchange_tokens[exch_type]:
+                        exchange_tokens[exch_type].append(item['token'])
+
+        # Create subscription message format
+        subscription_data = {
+            "action": 1,  # 1 for subscribe
+            "params": {
+                "mode": 3,  # Snap Quote mode
+                "tokenList": [
+                    {
+                        "exchangeType": exchange_type,
+                        "tokens": tokens
+                    }
+                    for exchange_type, tokens in exchange_tokens.items()
+                ]
+            }
+        }
+
+        return jsonify({
+            'status': 'success',
+            'subscription_data': subscription_data
+        })
+
+    except Exception as e:
+        print(f"Error getting watchlist tokens: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+    
+@dashboard_bp.route('/get_watchlist_content/<int:watchlist_id>', methods=['GET'])
+def get_watchlist_content(watchlist_id):
+    if 'client_id' not in session:
+        return jsonify({'status': 'error', 'message': 'Not logged in'}), 401
+
+    user = User.query.filter_by(client_id=session['client_id']).first()
+
+    try:
+        watchlist = Watchlist.query.filter_by(id=watchlist_id, user_id=user.id).first()
+        if not watchlist:
+            return jsonify({'status': 'error', 'message': 'Watchlist not found'}), 404
+
+        watchlist_items = WatchlistItem.query.filter_by(watchlist_id=watchlist.id).all()
+        
+        items_data = [{
+            'id': item.id,
+            'symbol': item.symbol,
+            'name': item.name,
+            'token': item.token,
+            'expiry': item.expiry,
+            'strike': item.strike,
+            'lotsize': item.lotsize,
+            'instrumenttype': item.instrumenttype,
+            'exch_seg': item.exch_seg,
+            'tick_size': item.tick_size
+        } for item in watchlist_items]
+
+        watchlist_content = render_template('watchlist_content.html', 
+                                            watchlist=watchlist, 
+                                            items=items_data)
+
+        return jsonify({
+            'status': 'success',
+            'content': watchlist_content
+        })
+
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500

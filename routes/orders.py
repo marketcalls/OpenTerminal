@@ -54,7 +54,9 @@ def orderbook():
         print(response_json)
 
         if response_json.get('status') and response_json['status'] == True:
-            order_data = response_json['data']
+            order_data = response_json.get('data', [])
+            if order_data is None:
+                order_data = []
             return render_template('orderbook.html', order_data=order_data)
         else:
             flash('Failed to retrieve order book.', 'danger')
@@ -102,7 +104,9 @@ def tradebook():
         response_json = json.loads(data.decode("utf-8"))
 
         if response_json.get('status') and response_json['status'] == True:
-            trade_data = response_json['data']
+            trade_data = response_json.get('data', [])
+            if trade_data is None:
+                trade_data = []
             print(trade_data)
             return render_template('tradebook.html', trade_data=trade_data)
         else:
@@ -151,7 +155,10 @@ def positions():
         response_json = json.loads(data.decode("utf-8"))
 
         if response_json.get('status') and response_json['status'] == True:
-            positions_data = response_json['data']
+            positions_data = response_json.get('data', [])
+            if positions_data is None:
+                positions_data = []
+            print(positions_data)
             return render_template('positions.html', positions_data=positions_data)
         else:
             flash('Failed to retrieve positions.', 'danger')

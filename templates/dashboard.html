@@ -26,7 +26,7 @@
             </div>
         </div>
 
-        <!-- Watchlists -->
+        <!-- Watchlists Header -->
         <div id="watchlists" class="bg-base-200 rounded-lg p-4">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-lg font-bold">Watchlists</h2>
@@ -70,31 +70,83 @@
                     </div>
                     <ul id="search-results" class="mt-2 bg-base-100 rounded-lg overflow-hidden"></ul>
                 </div>
-
                 <!-- Watchlist content -->
                 {% for watchlist in watchlists %}
                     <div id="watchlist-{{ watchlist.id }}" class="watchlist-content {% if not loop.first %}hidden{% endif %}">
                         <ul class="space-y-2">
                             {% if watchlist.items_list and watchlist.items_list|length > 0 %}
                                 {% for item in watchlist.items_list %}
-                                    <li class="flex justify-between items-center p-2 hover:bg-base-100 rounded-lg">
-                                        <div class="flex flex-col">
-                                            <span class="font-medium">{{ item.symbol }}</span>
-                                            <span class="text-xs text-gray-500">{{ item.exch_seg }}</span>
+                                    <li class="watchlist-item bg-base-100 rounded-lg overflow-hidden shadow-sm" 
+                                        id="item-{{ item.token }}"
+                                        data-token="{{ item.token }}"
+                                        data-exch-type="{{ {'NSE': 1, 'BSE': 3, 'MCX': 5}[item.exch_seg] }}">
+                                        
+                                        <!-- Symbol Header -->
+                                        <div class="flex justify-between items-center p-3 hover:bg-base-200 cursor-pointer"
+                                             onclick="toggleDepth('depth-{{ item.token }}')">
+                                            <div class="flex flex-col">
+                                                <span class="font-medium">{{ item.symbol }}</span>
+                                                <span class="text-xs text-base-content/70">{{ item.exch_seg }}</span>
+                                            </div>
+                                            <div class="flex items-center gap-4">
+                                                <div class="text-right">
+                                                    <div class="font-medium ltp">--</div>
+                                                    <div class="flex items-center gap-1 text-xs">
+                                                        {% if settings.show_ltp_change == 'true' %}
+                                                            <span class="change">0.00</span>
+                                                        {% endif %}
+                                                        {% if settings.show_ltp_change_percent == 'true' %}
+                                                            <span class="change-percent">(0.00%)</span>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                                <button class="btn btn-ghost btn-xs remove-item-btn" 
+                                                        data-item-id="{{ item.id }}"
+                                                        onclick="event.stopPropagation()">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div class="flex items-center gap-4">
-                                            {% if settings.show_ltp_change == 'true' %}
-                                                <span class="ltp-change text-xs font-medium text-right">0.00</span>
-                                            {% endif %}
-                                            {% if settings.show_ltp_change_percent == 'true' %}
-                                                <span class="ltp-change-percent text-xs font-medium text-right">0.00%</span>
-                                            {% endif %}
-                                            <button class="btn btn-ghost btn-xs remove-item-btn opacity-0 group-hover:opacity-100" 
-                                                    data-item-id="{{ item.id }}">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                                </svg>
-                                            </button>
+
+                                        <!-- Market Depth Section -->
+                                        <div id="depth-{{ item.token }}" class="hidden border-t border-base-200">
+                                            <div class="p-3 space-y-2">
+                                                <!-- Market Stats -->
+                                                <div class="grid grid-cols-4 gap-2 text-xs border-b border-base-200 pb-2">
+                                                    <div>O: <span class="open">--</span></div>
+                                                    <div>H: <span class="high">--</span></div>
+                                                    <div>L: <span class="low">--</span></div>
+                                                    <div>C: <span class="close">--</span></div>
+                                                </div>
+
+                                                <!-- Depth Table -->
+                                                <table class="w-full text-xs">
+                                                    <thead class="text-base-content/70">
+                                                        <tr>
+                                                            <th class="py-1 text-right">Qty</th>
+                                                            <th class="py-1 text-right">Orders</th>
+                                                            <th class="py-1 text-right text-green-500">Bid</th>
+                                                            <th class="py-1 text-right text-red-500">Ask</th>
+                                                            <th class="py-1 text-right">Orders</th>
+                                                            <th class="py-1 text-right">Qty</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody class="depth-data">
+                                                        <!-- Depth data will be injected here -->
+                                                    </tbody>
+                                                </table>
+
+                                                <!-- Volume and Buy/Sell Quantities -->
+                                                <div class="flex justify-between text-xs text-base-content/70 pt-2 border-t border-base-200">
+                                                    <div>Vol: <span class="volume">--</span></div>
+                                                    <div>
+                                                        Buy: <span class="total-buy-qty">--</span> | 
+                                                        Sell: <span class="total-sell-qty">--</span>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </li>
                                 {% endfor %}
@@ -117,8 +169,9 @@
 
     <!-- Right Panel -->
     <div class="w-3/4 bg-base-200 p-4">
-        <h2 class="text-xl font-bold mb-4">Market Overview</h2>
-        <!-- Add your market overview content here -->
+        <div id="market-depth-detail" class="hidden bg-base-100 rounded-lg p-4">
+            <!-- Detailed market depth will be shown here -->
+        </div>
     </div>
 </div>
 
@@ -151,7 +204,7 @@
             </label>
         </div>
 
-        <!-- Watchlists Section -->
+        <!-- Watchlist Management Section -->
         <div class="mb-6">
             <h4 class="font-medium mb-2">Your Watchlists</h4>
             <div class="space-y-2">
@@ -185,7 +238,7 @@
             </div>
         </div>
 
-        <div class="modal-action flex-col gap-2">
+        <div class="modal-action">
             <button class="btn btn-primary w-full" id="create-new-watchlist-btn">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
@@ -196,5 +249,27 @@
     </div>
 </dialog>
 
+<!-- JavaScript -->
+<script>
+function toggleDepth(depthId) {
+    const depthElement = document.getElementById(depthId);
+    const allDepths = document.querySelectorAll('[id^="depth-"]');
+    
+    // Close all other depth views
+    allDepths.forEach(el => {
+        if (el.id !== depthId && !el.classList.contains('hidden')) {
+            el.classList.add('hidden');
+        }
+    });
+    
+    // Toggle current depth view
+    if (depthElement) {
+        depthElement.classList.toggle('hidden');
+    }
+}
+</script>
+<script src="{{ url_for('static', filename='js/modules/marketDataDecoder.js') }}"></script>
+<script src="{{ url_for('static', filename='js/modules/marketDataUpdater.js') }}"></script>
+<script src="{{ url_for('static', filename='js/modules/watchlistManager.js') }}"></script>
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}
