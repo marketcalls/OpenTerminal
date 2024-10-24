@@ -100,8 +100,6 @@
                         </label>
                         <ul tabindex="0" class="menu menu-compact dropdown-content mt-3 p-2 shadow bg-base-200 rounded-box w-52">
                             {% if session.get('client_id') %}
-                                <li><a href="/profile">Profile</a></li>
-                                <li><a href="/settings">Settings</a></li>
                                 <li><a href="/logout">Logout</a></li>
                             {% else %}
                                 <li><a href="/login">Login</a></li>
@@ -158,8 +156,6 @@
                     <li><a href="/holdings">Holdings</a></li>
                     <li><a href="/funds">Funds</a></li>
                     <li class="divider"></li>
-                    <li><a href="/profile">Profile</a></li>
-                    <li><a href="/settings">Settings</a></li>
                     <li><a href="/logout">Logout</a></li>
                 {% else %}
                     <li><a href="/">Home</a></li>
