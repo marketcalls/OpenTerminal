@@ -155,7 +155,10 @@ def positions():
         response_json = json.loads(data.decode("utf-8"))
 
         if response_json.get('status') and response_json['status'] == True:
-            positions_data = response_json['data']
+            positions_data = response_json.get('data', [])
+            if positions_data is None:
+                positions_data = []
+            print(positions_data)
             return render_template('positions.html', positions_data=positions_data)
         else:
             flash('Failed to retrieve positions.', 'danger')
