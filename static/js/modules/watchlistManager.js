@@ -4,8 +4,88 @@ const WatchlistManager = {
     init() {
         this.csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         this.searchTimeout = null;
+        this.activeSubscriptions = new Map(); // Track active subscriptions by watchlist
         this.bindEventListeners();
         this.initializeSearch();
+        this.initializeTabManagement();
+    },
+
+    initializeTabManagement() {
+        // Set initial active tab subscriptions
+        const activeTab = document.querySelector('.tab-active');
+        if (activeTab) {
+            this.handleTabActivation(activeTab.dataset.watchlistId);
+        }
+    },
+
+    async handleTabActivation(newWatchlistId) {
+        // Unsubscribe from previous watchlist's symbols
+        for (const [watchlistId, tokens] of this.activeSubscriptions.entries()) {
+            if (watchlistId !== newWatchlistId) {
+                await this.unsubscribeFromSymbols(tokens);
+                this.activeSubscriptions.delete(watchlistId);
+            }
+        }
+
+        // Subscribe to new watchlist's symbols
+        const watchlistContent = document.getElementById(`watchlist-${newWatchlistId}`);
+        if (watchlistContent) {
+            const symbols = Array.from(watchlistContent.querySelectorAll('[data-token]'));
+            const tokens = symbols.map(symbol => ({
+                token: symbol.dataset.token,
+                exchType: parseInt(symbol.dataset.exchType)
+            }));
+
+            if (tokens.length > 0) {
+                await this.subscribeToSymbols(tokens);
+                this.activeSubscriptions.set(newWatchlistId, tokens);
+            }
+        }
+    },
+
+    async subscribeToSymbols(tokens) {
+        const subscribeMsg = {
+            correlationID: "watchlist_" + Date.now(),
+            action: 1,
+            params: {
+                mode: 3,
+                tokenList: this.groupTokensByExchange(tokens)
+            }
+        };
+
+        window.dispatchEvent(new CustomEvent('websocketSubscribe', { 
+            detail: subscribeMsg 
+        }));
+    },
+
+    async unsubscribeFromSymbols(tokens) {
+        const unsubscribeMsg = {
+            correlationID: "watchlist_" + Date.now(),
+            action: 2, // Unsubscribe action
+            params: {
+                mode: 3,
+                tokenList: this.groupTokensByExchange(tokens)
+            }
+        };
+
+        window.dispatchEvent(new CustomEvent('websocketUnsubscribe', { 
+            detail: unsubscribeMsg 
+        }));
+    },
+
+    groupTokensByExchange(tokens) {
+        const exchangeTokens = new Map();
+        tokens.forEach(({token, exchType}) => {
+            if (!exchangeTokens.has(exchType)) {
+                exchangeTokens.set(exchType, []);
+            }
+            exchangeTokens.get(exchType).push(token);
+        });
+
+        return Array.from(exchangeTokens).map(([exchangeType, tokens]) => ({
+            exchangeType,
+            tokens
+        }));
     },
 
     bindEventListeners() {
@@ -31,14 +111,136 @@ const WatchlistManager = {
         document.querySelectorAll('.delete-watchlist-btn').forEach(btn =>
             btn.addEventListener('click', (e) => this.deleteWatchlist(e)));
 
-        // Tab Switching
+        // Updated tab switching handler
         document.querySelectorAll('.tab-btn').forEach(tab =>
-            tab.addEventListener('click', () => this.switchTab(tab)));
+            tab.addEventListener('click', async (e) => {
+                const watchlistId = e.target.dataset.watchlistId;
+                await this.switchTab(e.target);
+                await this.handleTabActivation(watchlistId);
+            }));
 
-        // Symbol Removal
+        // Updated symbol removal handler
         document.querySelectorAll('.remove-item-btn').forEach(btn =>
-            btn.addEventListener('click', (e) => this.removeSymbol(e)));
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await this.removeSymbol(e);
+            }));
     },
+
+    async removeSymbol(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const itemId = event.currentTarget.dataset.itemId;
+        const watchlistItem = event.currentTarget.closest('.watchlist-item');
+        
+        if (!watchlistItem) return;
+        
+        const token = watchlistItem.dataset.token;
+        const exchType = parseInt(watchlistItem.dataset.exchType);
+
+        try {
+            const response = await this.makeRequest('/remove_watchlist_item', {
+                method: 'POST',
+                body: JSON.stringify({ item_id: itemId })
+            });
+
+            if (response.status === 'success') {
+                // Remove from active subscriptions immediately
+                const activeWatchlistId = document.querySelector('.tab-active').dataset.watchlistId;
+                const currentTokens = this.activeSubscriptions.get(activeWatchlistId) || [];
+                this.activeSubscriptions.set(
+                    activeWatchlistId,
+                    currentTokens.filter(t => t.token !== token)
+                );
+
+                // Unsubscribe from the WebSocket
+                await this.unsubscribeFromSymbols([{ token, exchType }]);
+
+                // Remove from DOM immediately
+                watchlistItem.remove();
+
+                // Check if watchlist is now empty
+                const watchlistContent = document.querySelector('.watchlist-content:not(.hidden)');
+                if (watchlistContent && !watchlistContent.querySelector('.watchlist-item')) {
+                    watchlistContent.innerHTML = `
+                        <div class="text-center text-base-content/70 py-4">
+                            No items in this watchlist
+                        </div>
+                    `;
+                }
+
+                // Notify other components
+                window.dispatchEvent(new CustomEvent('symbolRemoved', { 
+                    detail: { token, exchType } 
+                }));
+            } else {
+                console.error('Error removing symbol:', response.message);
+            }
+        } catch (error) {
+            console.error('Error removing symbol:', error);
+        }
+    },
+
+    async handleTabActivation(newWatchlistId) {
+        try {
+            // Unsubscribe from previous watchlist's symbols
+            for (const [watchlistId, tokens] of this.activeSubscriptions.entries()) {
+                if (watchlistId !== newWatchlistId) {
+                    await this.unsubscribeFromSymbols(tokens);
+                    this.activeSubscriptions.delete(watchlistId);
+                }
+            }
+
+            // Subscribe to new watchlist's symbols
+            const watchlistContent = document.getElementById(`watchlist-${newWatchlistId}`);
+            if (watchlistContent) {
+                const symbols = Array.from(watchlistContent.querySelectorAll('[data-token]'));
+                const tokens = symbols.map(symbol => ({
+                    token: symbol.dataset.token,
+                    exchType: parseInt(symbol.dataset.exchType)
+                }));
+
+                if (tokens.length > 0) {
+                    await this.subscribeToSymbols(tokens);
+                    this.activeSubscriptions.set(newWatchlistId, tokens);
+                    console.log('Subscribed to tokens for watchlist:', newWatchlistId, tokens);
+                }
+            }
+        } catch (error) {
+            console.error('Error during tab activation:', error);
+        }
+    },
+
+    switchTab(tab, reload = false) {
+        // Remove active class from all tabs
+        document.querySelectorAll('.tab-btn').forEach(t => {
+            t.classList.remove('tab-active');
+        });
+        
+        // Hide all watchlist contents
+        document.querySelectorAll('.watchlist-content').forEach(content => {
+            content.classList.add('hidden');
+        });
+        
+        // Add active class to clicked tab
+        tab.classList.add('tab-active');
+        
+        // Show corresponding watchlist content
+        const watchlistId = tab.dataset.watchlistId;
+        const watchlistContent = document.getElementById(`watchlist-${watchlistId}`);
+        if (watchlistContent) {
+            watchlistContent.classList.remove('hidden');
+            // Trigger subscription update for the new active tab
+            this.handleTabActivation(watchlistId);
+        }
+
+        // Only reload if explicitly requested
+        if (reload) {
+            location.reload();
+        }
+    },
+
 
     initializeSearch() {
         const searchInput = document.getElementById('search-symbol-input');
@@ -197,26 +399,39 @@ const WatchlistManager = {
                 const watchlistContent = document.getElementById(`watchlist-${watchlistId}`);
                 const symbolList = watchlistContent.querySelector('ul');
 
+                // Check if this is the first symbol being added
+                const isFirstSymbol = !symbolList.querySelector('.watchlist-item');
+                if (isFirstSymbol) {
+                    symbolList.innerHTML = ''; // Clear "no items" message if present
+                }
+
                 // Create new symbol element
                 const newSymbolItem = this.createSymbolListItem(response.data);
                 symbolList.appendChild(newSymbolItem);
 
-                // Remove "no items" message if it exists
-                const noItemsMessage = symbolList.querySelector('.no-items-message');
-                if (noItemsMessage) {
-                    noItemsMessage.remove();
-                }
+                // Create subscription data for the new symbol
+                const newSymbolData = {
+                    token: response.data.token,
+                    exchType: this.getExchTypeCode(response.data.exch_seg)
+                };
 
-                // Initialize market data for new symbol
+                // Add to active subscriptions
+                const currentTokens = this.activeSubscriptions.get(watchlistId) || [];
+                currentTokens.push(newSymbolData);
+                this.activeSubscriptions.set(watchlistId, currentTokens);
+
+                // Subscribe to the new symbol's data feed
+                await this.subscribeToSymbols([newSymbolData]);
+
+                // Notify other components
                 window.dispatchEvent(new CustomEvent('symbolAdded', { 
-                    detail: response.data 
+                    detail: {
+                        ...response.data,
+                        exchType: this.getExchTypeCode(response.data.exch_seg)
+                    }
                 }));
 
-                // Maintain active tab
-                const activeTab = document.querySelector('.tab-active');
-                if (activeTab) {
-                    this.switchTab(activeTab, false); // false means don't reload page
-                }
+                console.log('Symbol added successfully:', newSymbolData);
             } else {
                 console.error('Error adding symbol:', response.message);
             }
@@ -227,7 +442,7 @@ const WatchlistManager = {
 
     createSymbolListItem(symbolData) {
         const li = document.createElement('li');
-        li.className = 'watchlist-item bg-base-100 rounded-lg overflow-hidden';
+        li.className = 'watchlist-item bg-base-100 rounded-lg overflow-hidden shadow-sm';
         li.id = `item-${symbolData.token}`;
         li.setAttribute('data-token', symbolData.token);
         li.setAttribute('data-exch-type', this.getExchTypeCode(symbolData.exch_seg));
@@ -293,6 +508,13 @@ const WatchlistManager = {
                 </div>
             </div>
         `;
+
+        // Add click handler for the remove button
+        const removeButton = li.querySelector('.remove-item-btn');
+        removeButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.removeSymbol(e);
+        });
 
         return li;
     },
