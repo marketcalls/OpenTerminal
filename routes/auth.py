@@ -1,3 +1,5 @@
+# routes/auth.py
+
 from flask import Blueprint, render_template, redirect, url_for, flash, request, session
 from extensions import db, redis_client
 from models import User, Watchlist, WatchlistItem, Instrument

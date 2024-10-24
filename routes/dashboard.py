@@ -1,3 +1,5 @@
+# routes/dashboard.py
+
 from flask import Blueprint, render_template, session, redirect, url_for, flash, request, jsonify
 from models import User, Watchlist, WatchlistItem, Instrument
 from extensions import db, redis_client
@@ -175,6 +177,7 @@ def delete_watchlist():
         db.session.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+
 @dashboard_bp.route('/add_watchlist_item', methods=['POST'])
 def add_watchlist_item():
     if 'client_id' not in session:
@@ -229,33 +232,27 @@ def add_watchlist_item():
         # Update Redis
         update_redis_watchlist(user.id)
 
-        # Get updated watchlist content
-        watchlist_items = WatchlistItem.query.filter_by(watchlist_id=watchlist.id).all()
-        items_data = [{
-            'id': item.id,
-            'symbol': item.symbol,
-            'name': item.name,
-            'token': item.token,
-            'expiry': item.expiry,
-            'strike': item.strike,
-            'lotsize': item.lotsize,
-            'instrumenttype': item.instrumenttype,
-            'exch_seg': item.exch_seg,
-            'tick_size': item.tick_size
-        } for item in watchlist_items]
-
-        watchlist_content = render_template('watchlist_content.html', 
-                                            watchlist=watchlist, 
-                                            items=items_data)
-
+        # Return the new item's data
         return jsonify({
             'status': 'success',
-            'content': watchlist_content
+            'data': {
+                'id': new_item.id,
+                'symbol': new_item.symbol,
+                'name': new_item.name,
+                'token': new_item.token,
+                'expiry': new_item.expiry,
+                'strike': new_item.strike,
+                'lotsize': new_item.lotsize,
+                'instrumenttype': new_item.instrumenttype,
+                'exch_seg': new_item.exch_seg,
+                'tick_size': new_item.tick_size
+            }
         })
 
     except Exception as e:
         db.session.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 @dashboard_bp.route('/remove_watchlist_item', methods=['POST'])
 def remove_watchlist_item():

@@ -21,8 +21,8 @@ Open Terminal is a Flask-based application for traders that provides a secure lo
 - **Backend**: Flask, Flask-SQLAlchemy, Flask-Login, Flask-WTF
 - **Database**: SQLite
 - **Caching**: Redis
-- **Frontend**: Tailwind CSS, DaisyUI
-- **API**: AngelOne API for user authentication
+- **Frontend**: Tailwind CSS, DaisyUI, JavaScript
+- **API**: AngelOne API for user authentication and market data
 - **Task Scheduling**: APScheduler
 - **Other**: pytz for timezone handling
 
@@ -45,7 +45,10 @@ openterminal/
 │   └── orders.py       # Order management routes
 ├── static/             # Static assets (CSS, JS)
 │   └── js/
-│       └── dashboard.js # Dashboard JavaScript
+│       ├── dashboard.js        # Dashboard JavaScript
+│       └── modules/
+│           ├── marketDataUpdater.js  # Handles real-time market data updates
+│           └── watchlistManager.js   # Manages watchlist operations
 ├── templates/          # HTML templates
 │   ├── layout.html     # Base layout for all pages
 │   ├── index.html      # Home page
@@ -129,6 +132,10 @@ You can set these in your environment or in a `.env` file for development.
 4. Navigate to other sections like Funds, Holdings, Order Book, Positions, and Trade Book.
 5. **Logout** will clear the session and access token.
 
+## Development Status
+
+Open Terminal is currently under active development. New features and improvements are being added regularly. Users and contributors should be aware that the application may undergo significant changes as it evolves.
+
 ## Future Features
 
 - Implement more comprehensive trading functionality.
@@ -142,4 +149,4 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). This license requires, among other things, that if you modify the software and run it publicly (including over a network), you must make the source code of your modifications available under the same license. See the [LICENSE](LICENSE) file for details.

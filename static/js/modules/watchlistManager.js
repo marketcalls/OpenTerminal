@@ -176,87 +176,150 @@ const WatchlistManager = {
         const activeWatchlist = document.querySelector('.tab-active');
         if (!activeWatchlist) return;
 
+        const watchlistId = activeWatchlist.dataset.watchlistId;
+
         try {
             const response = await this.makeRequest('/add_watchlist_item', {
                 method: 'POST',
                 body: JSON.stringify({
-                    watchlist_id: activeWatchlist.dataset.watchlistId,
+                    watchlist_id: watchlistId,
                     symbol: symbol,
                     exch_seg: exchSeg
                 })
             });
 
             if (response.status === 'success') {
-                this.addSymbolToDOM(response.data);
+                // Clear search
                 document.getElementById('search-results').innerHTML = '';
                 document.getElementById('search-symbol-input').value = '';
+
+                // Get the current watchlist content container
+                const watchlistContent = document.getElementById(`watchlist-${watchlistId}`);
+                const symbolList = watchlistContent.querySelector('ul');
+
+                // Create new symbol element
+                const newSymbolItem = this.createSymbolListItem(response.data);
+                symbolList.appendChild(newSymbolItem);
+
+                // Remove "no items" message if it exists
+                const noItemsMessage = symbolList.querySelector('.no-items-message');
+                if (noItemsMessage) {
+                    noItemsMessage.remove();
+                }
+
+                // Initialize market data for new symbol
+                window.dispatchEvent(new CustomEvent('symbolAdded', { 
+                    detail: response.data 
+                }));
+
+                // Maintain active tab
+                const activeTab = document.querySelector('.tab-active');
+                if (activeTab) {
+                    this.switchTab(activeTab, false); // false means don't reload page
+                }
             } else {
-                console.error('Error adding symbol to watchlist:', response.message);
+                console.error('Error adding symbol:', response.message);
             }
         } catch (error) {
             console.error('Error:', error);
         }
     },
 
-    addSymbolToDOM(symbolData) {
-        const activeWatchlist = document.querySelector('.tab-active');
-        const watchlistContent = document.getElementById(`watchlist-${activeWatchlist.dataset.watchlistId}`);
-        const symbolList = watchlistContent.querySelector('ul');
-
-        const newSymbolItem = document.createElement('li');
-        newSymbolItem.className = 'flex items-center justify-between p-2 hover:bg-base-200';
-        newSymbolItem.setAttribute('data-token', symbolData.token);
-        newSymbolItem.innerHTML = `
-            <div>
-                <span class="font-medium">${symbolData.symbol}</span>
-                <span class="text-xs text-base-content/70">${symbolData.exch_seg}</span>
+    createSymbolListItem(symbolData) {
+        const li = document.createElement('li');
+        li.className = 'watchlist-item bg-base-100 rounded-lg overflow-hidden';
+        li.id = `item-${symbolData.token}`;
+        li.setAttribute('data-token', symbolData.token);
+        li.setAttribute('data-exch-type', this.getExchTypeCode(symbolData.exch_seg));
+        
+        li.innerHTML = `
+            <div class="flex justify-between items-center p-3 hover:bg-base-200 cursor-pointer"
+                 onclick="toggleDepth('depth-${symbolData.token}')">
+                <div class="flex flex-col">
+                    <span class="font-medium">${symbolData.symbol}</span>
+                    <span class="text-xs text-base-content/70">${symbolData.exch_seg}</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
+                        <div class="font-medium ltp">--</div>
+                        <div class="flex items-center gap-1 text-xs">
+                            <span class="change">0.00</span>
+                            <span class="change-percent">(0.00%)</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-xs remove-item-btn" 
+                            data-item-id="${symbolData.id}"
+                            onclick="event.stopPropagation(); WatchlistManager.removeSymbol(event)">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
             </div>
-            <div class="flex items-center space-x-2">
-                <span class="ltp">--</span>
-                <span class="change hidden">--</span>
-                <span class="change-percent hidden">--</span>
-                <button class="remove-item-btn btn btn-ghost btn-xs" data-item-id="${symbolData.id}">
-                    <i class="fas fa-times"></i>
-                </button>
+            <!-- Market Depth Section -->
+            <div id="depth-${symbolData.token}" class="hidden border-t border-base-200">
+                <div class="p-3 space-y-2">
+                    <!-- Market Stats -->
+                    <div class="grid grid-cols-4 gap-2 text-xs border-b border-base-200 pb-2">
+                        <div>O: <span class="open">--</span></div>
+                        <div>H: <span class="high">--</span></div>
+                        <div>L: <span class="low">--</span></div>
+                        <div>C: <span class="close">--</span></div>
+                    </div>
+                    <!-- Depth Table -->
+                    <table class="w-full text-xs">
+                        <thead class="text-base-content/70">
+                            <tr>
+                                <th class="py-1 text-right">Qty</th>
+                                <th class="py-1 text-right">Orders</th>
+                                <th class="py-1 text-right text-green-500">Bid</th>
+                                <th class="py-1 text-right text-red-500">Ask</th>
+                                <th class="py-1 text-right">Orders</th>
+                                <th class="py-1 text-right">Qty</th>
+                            </tr>
+                        </thead>
+                        <tbody class="depth-data">
+                            <!-- Depth data will be injected here -->
+                        </tbody>
+                    </table>
+                    <!-- Volume and Buy/Sell Quantities -->
+                    <div class="flex justify-between text-xs text-base-content/70 pt-2 border-t border-base-200">
+                        <div>Vol: <span class="volume">--</span></div>
+                        <div>
+                            Buy: <span class="total-buy-qty">--</span> | 
+                            Sell: <span class="total-sell-qty">--</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
 
-        symbolList.appendChild(newSymbolItem);
-
-        // Add event listener for the new remove button
-        const removeBtn = newSymbolItem.querySelector('.remove-item-btn');
-        removeBtn.addEventListener('click', (e) => this.removeSymbol(e));
-
-        // Trigger a custom event to notify that a new symbol has been added
-        window.dispatchEvent(new CustomEvent('symbolAdded', { detail: symbolData }));
+        return li;
     },
 
-    async removeSymbol(event) {
-        const itemId = event.currentTarget.dataset.itemId;
-        if (!confirm('Remove this symbol from watchlist?')) return;
-
-        try {
-            const response = await this.makeRequest('/remove_watchlist_item', {
-                method: 'POST',
-                body: JSON.stringify({ item_id: itemId })
-            });
-
-            if (response.status === 'success') {
-                event.currentTarget.closest('li').remove();
-            } else {
-                console.error('Error removing symbol from watchlist:', response.message);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-        }
+    getExchTypeCode(exchSeg) {
+        const exchMap = {
+            'NSE': 1,     // nse_cm
+            'NFO': 2,     // nse_fo
+            'BSE': 3,     // bse_cm
+            'BFO': 4,     // bse_fo
+            'MCX': 5,     // mcx_fo
+            'NCX': 7,     // ncx_fo
+            'CDS': 13     // cde_fo
+        };
+        return exchMap[exchSeg] || 1;
     },
 
-    switchTab(tab) {
+    switchTab(tab, reload = false) {
         // Remove active class from all tabs
-        document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('tab-active'));
+        document.querySelectorAll('.tab-btn').forEach(t => {
+            t.classList.remove('tab-active');
+        });
         
         // Hide all watchlist contents
-        document.querySelectorAll('.watchlist-content').forEach(content => content.classList.add('hidden'));
+        document.querySelectorAll('.watchlist-content').forEach(content => {
+            content.classList.add('hidden');
+        });
         
         // Add active class to clicked tab
         tab.classList.add('tab-active');
@@ -267,8 +330,13 @@ const WatchlistManager = {
         if (watchlistContent) {
             watchlistContent.classList.remove('hidden');
         }
-    },
 
+        // Only reload if explicitly requested
+        if (reload) {
+            location.reload();
+        }
+    },
+    
     async updateSettings() {
         const settings = {
             show_ltp_change: document.getElementById('show-ltp-change').checked,
