@@ -85,10 +85,19 @@ const WatchlistCore = {
         try {
             const response = await fetch(`/search_symbols?q=${encodeURIComponent(query)}`);
             const data = await response.json();
-            this.displaySearchResults(data.results);
+            const filteredResults = this.filterSearchResults(data.results, query);
+            this.displaySearchResults(filteredResults);
         } catch (error) {
             console.error('Error searching symbols:', error);
         }
+    },
+
+    filterSearchResults(results, query) {
+        const terms = query.toUpperCase().split(/\s+/);
+        return results.filter(result => {
+            const symbolInfo = `${result.symbol} ${result.exch_seg}`.toUpperCase();
+            return terms.every(term => symbolInfo.includes(term));
+        });
     },
 
     displaySearchResults(results) {

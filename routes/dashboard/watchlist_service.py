@@ -2,6 +2,7 @@ from models import User, Watchlist, WatchlistItem, Instrument
 from extensions import db, redis_client
 from .utils import cache_key, get_cached_data, set_cached_data
 import json
+from sqlalchemy import and_, or_
 
 class WatchlistService:
     def get_user_watchlists(self, user_id):
@@ -200,16 +201,36 @@ class WatchlistService:
     def search_symbols(self, query):
         """Search for symbols"""
         try:
-            instruments = Instrument.query.filter(
-                (Instrument.symbol.ilike(f'%{query}%')) | 
-                (Instrument.name.ilike(f'%{query}%'))
-            ).limit(10).all()
+            # Split the query into individual terms
+            terms = query.upper().split()
+            
+            # Create a list of conditions for each term
+            conditions = []
+            for term in terms:
+                term_condition = or_(
+                    Instrument.symbol.ilike(f'%{term}%'),
+                    Instrument.name.ilike(f'%{term}%'),
+                    Instrument.exch_seg.ilike(f'%{term}%'),
+                    Instrument.instrumenttype.ilike(f'%{term}%'),
+                    Instrument.expiry.ilike(f'%{term}%'),
+                    Instrument.strike.ilike(f'%{term}%')
+                )
+                conditions.append(term_condition)
+            
+            # Combine all conditions with AND
+            combined_condition = and_(*conditions)
+            
+            # Query the database
+            instruments = Instrument.query.filter(combined_condition).limit(10).all()
 
             return [{
                 'symbol': instrument.symbol,
                 'name': instrument.name,
                 'exch_seg': instrument.exch_seg,
-                'token': instrument.token
+                'token': instrument.token,
+                'instrumenttype': instrument.instrumenttype,
+                'expiry': instrument.expiry,
+                'strike': instrument.strike
             } for instrument in instruments]
 
         except Exception as e:
