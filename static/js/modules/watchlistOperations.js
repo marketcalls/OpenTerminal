@@ -5,6 +5,22 @@ const WatchlistOperations = {
      * Watchlist CRUD Operations
      */
     async createWatchlist() {
+        // Check if max limit reached
+        const watchlistCount = document.querySelectorAll('.tab-btn').length;
+        if (watchlistCount >= 5) {
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-error shadow-lg fixed top-4 right-4 w-auto z-50';
+            alert.innerHTML = `
+                <div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span>Maximum limit of 5 watchlists reached!</span>
+                </div>
+            `;
+            document.body.appendChild(alert);
+            setTimeout(() => alert.remove(), 3000);
+            return;
+        }
+
         const name = prompt('Enter watchlist name:');
         if (!name) return;
 
@@ -47,6 +63,11 @@ const WatchlistOperations = {
 
                     if (response.status === 'success') {
                         nameElement.textContent = newName;
+                        // Update tab name as well
+                        const tab = document.querySelector(`[data-watchlist-id="${watchlistId}"]`);
+                        if (tab) {
+                            tab.textContent = newName;
+                        }
                     }
                 } catch (error) {
                     console.error('Error:', error);
@@ -69,7 +90,21 @@ const WatchlistOperations = {
         event.preventDefault();
         const watchlistId = event.currentTarget.dataset.watchlistId;
         
-        if (!confirm('Are you sure you want to delete this watchlist?')) return;
+        // Check if this is the last watchlist
+        const watchlistCount = document.querySelectorAll('.tab-btn').length;
+        if (watchlistCount <= 1) {
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-warning shadow-lg fixed top-4 right-4 w-auto z-50';
+            alert.innerHTML = `
+                <div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <span>Cannot delete the last watchlist!</span>
+                </div>
+            `;
+            document.body.appendChild(alert);
+            setTimeout(() => alert.remove(), 3000);
+            return;
+        }
 
         try {
             const response = await WatchlistCore.makeRequest('/delete_watchlist', {
@@ -84,32 +119,57 @@ const WatchlistOperations = {
                     WatchlistCore.state.activeSubscriptions.delete(watchlistId);
                 }
 
-                this.removeWatchlistFromDOM(watchlistId);
-                document.getElementById('watchlist-modal')?.close();
+                // Remove from DOM immediately
+                const tab = document.querySelector(`[data-watchlist-id="${watchlistId}"]`);
+                const content = document.getElementById(`watchlist-${watchlistId}`);
+                const watchlistRow = document.getElementById(`watchlist-row-${watchlistId}`);
+                
+                // Remove all elements
+                [tab, content, watchlistRow].forEach(el => {
+                    if (el) {
+                        el.style.opacity = '0';
+                        el.style.transition = 'opacity 0.3s ease';
+                        setTimeout(() => el.remove(), 300);
+                    }
+                });
+
+                // Switch to another tab if needed
+                if (tab?.classList.contains('tab-active')) {
+                    const remainingTab = document.querySelector('.tab-btn');
+                    if (remainingTab) {
+                        this.switchTab(remainingTab);
+                    } else {
+                        const watchlistsDiv = document.getElementById('watchlists');
+                        if (watchlistsDiv) {
+                            watchlistsDiv.innerHTML = WatchlistCore.getTemplate('emptyWatchlist');
+                        }
+                    }
+                }
+
+                // Show success notification
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-success shadow-lg fixed top-4 right-4 w-auto z-50';
+                alert.innerHTML = `
+                    <div>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span>Watchlist deleted successfully</span>
+                    </div>
+                `;
+                document.body.appendChild(alert);
+                setTimeout(() => alert.remove(), 3000);
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('An error occurred while deleting the watchlist.');
-        }
-    },
-
-    removeWatchlistFromDOM(watchlistId) {
-        const tab = document.querySelector(`[data-watchlist-id="${watchlistId}"]`);
-        const content = document.getElementById(`watchlist-${watchlistId}`);
-        const watchlistRow = document.getElementById(`watchlist-row-${watchlistId}`);
-        
-        [tab, content, watchlistRow].forEach(el => el?.remove());
-
-        if (tab?.classList.contains('tab-active')) {
-            const remainingTab = document.querySelector('.tab-btn');
-            if (remainingTab) {
-                this.switchTab(remainingTab);
-            } else {
-                const watchlistsDiv = document.getElementById('watchlists');
-                if (watchlistsDiv) {
-                    watchlistsDiv.innerHTML = WatchlistCore.getTemplate('emptyWatchlist');
-                }
-            }
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-error shadow-lg fixed top-4 right-4 w-auto z-50';
+            alert.innerHTML = `
+                <div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span>An error occurred while deleting the watchlist</span>
+                </div>
+            `;
+            document.body.appendChild(alert);
+            setTimeout(() => alert.remove(), 3000);
         }
     },
 
@@ -181,6 +241,16 @@ const WatchlistOperations = {
                 exchType: WatchlistCore.getExchTypeCode(symbolData.exch_seg)
             }
         }));
+
+        // Update scrip count in manage modal
+        const watchlistRow = document.getElementById(`watchlist-row-${watchlistId}`);
+        if (watchlistRow) {
+            const scripCount = watchlistRow.querySelector('.text-xs.text-base-content\\/70');
+            if (scripCount) {
+                const currentCount = parseInt(scripCount.textContent) || 0;
+                scripCount.textContent = `${currentCount + 1} Scrips`;
+            }
+        }
     },
 
     async removeSymbol(event) {
@@ -232,6 +302,16 @@ const WatchlistOperations = {
         window.dispatchEvent(new CustomEvent('symbolRemoved', { 
             detail: { token, exchType } 
         }));
+
+        // Update scrip count in manage modal
+        const watchlistRow = document.getElementById(`watchlist-row-${activeWatchlistId}`);
+        if (watchlistRow) {
+            const scripCount = watchlistRow.querySelector('.text-xs.text-base-content\\/70');
+            if (scripCount) {
+                const currentCount = parseInt(scripCount.textContent) || 0;
+                scripCount.textContent = `${Math.max(0, currentCount - 1)} Scrips`;
+            }
+        }
     },
 
     /**
