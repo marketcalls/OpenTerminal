@@ -1,45 +1,94 @@
 // static/js/modules/watchlistManager.js
 
 const WatchlistManager = {
+    /**
+     * Core state and template cache
+     */
+    state: {
+        csrfToken: null,
+        searchTimeout: null,
+        activeSubscriptions: new Map(),
+        templates: new Map()
+    },
+
+    /**
+     * Initialize the watchlist manager
+     */
     init() {
-        this.csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-        this.searchTimeout = null;
-        this.activeSubscriptions = new Map(); // Track active subscriptions by watchlist
+        this.state.csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        this.loadTemplates();
         this.bindEventListeners();
         this.initializeSearch();
         this.initializeTabManagement();
     },
 
+    /**
+     * Template Management
+     */
+    async loadTemplates() {
+        const templateFiles = [
+            'symbolListItem',
+            'marketDepth',
+            'emptyWatchlist'
+        ];
+
+        for (const name of templateFiles) {
+            try {
+                const response = await fetch(`/static/js/modules/templates/${name}.html`);
+                const template = await response.text();
+                this.state.templates.set(name, template);
+            } catch (error) {
+                console.error(`Error loading template ${name}:`, error);
+            }
+        }
+    },
+
+    getTemplate(name, data = {}) {
+        let template = this.state.templates.get(name) || '';
+        return template.replace(/\${(\w+)}/g, (_, key) => data[key] || '');
+    },
+
     initializeTabManagement() {
-        // Set initial active tab subscriptions
         const activeTab = document.querySelector('.tab-active');
         if (activeTab) {
             this.handleTabActivation(activeTab.dataset.watchlistId);
         }
     },
 
+    /**
+     * WebSocket Subscription Management
+     */
     async handleTabActivation(newWatchlistId) {
-        // Unsubscribe from previous watchlist's symbols
-        for (const [watchlistId, tokens] of this.activeSubscriptions.entries()) {
-            if (watchlistId !== newWatchlistId) {
+        try {
+            await this.unsubscribeFromOtherWatchlists(newWatchlistId);
+            await this.subscribeToActiveWatchlist(newWatchlistId);
+        } catch (error) {
+            console.error('Error during tab activation:', error);
+        }
+    },
+
+    async unsubscribeFromOtherWatchlists(activeWatchlistId) {
+        for (const [watchlistId, tokens] of this.state.activeSubscriptions.entries()) {
+            if (watchlistId !== activeWatchlistId) {
                 await this.unsubscribeFromSymbols(tokens);
-                this.activeSubscriptions.delete(watchlistId);
+                this.state.activeSubscriptions.delete(watchlistId);
             }
         }
+    },
 
-        // Subscribe to new watchlist's symbols
-        const watchlistContent = document.getElementById(`watchlist-${newWatchlistId}`);
-        if (watchlistContent) {
-            const symbols = Array.from(watchlistContent.querySelectorAll('[data-token]'));
-            const tokens = symbols.map(symbol => ({
-                token: symbol.dataset.token,
-                exchType: parseInt(symbol.dataset.exchType)
-            }));
+    async subscribeToActiveWatchlist(watchlistId) {
+        const watchlistContent = document.getElementById(`watchlist-${watchlistId}`);
+        if (!watchlistContent) return;
 
-            if (tokens.length > 0) {
-                await this.subscribeToSymbols(tokens);
-                this.activeSubscriptions.set(newWatchlistId, tokens);
-            }
+        const symbols = Array.from(watchlistContent.querySelectorAll('[data-token]'));
+        const tokens = symbols.map(symbol => ({
+            token: symbol.dataset.token,
+            exchType: parseInt(symbol.dataset.exchType)
+        }));
+
+        if (tokens.length > 0) {
+            await this.subscribeToSymbols(tokens);
+            this.state.activeSubscriptions.set(watchlistId, tokens);
         }
     },
 
@@ -52,25 +101,19 @@ const WatchlistManager = {
                 tokenList: this.groupTokensByExchange(tokens)
             }
         };
-
-        window.dispatchEvent(new CustomEvent('websocketSubscribe', { 
-            detail: subscribeMsg 
-        }));
+        window.dispatchEvent(new CustomEvent('websocketSubscribe', { detail: subscribeMsg }));
     },
 
     async unsubscribeFromSymbols(tokens) {
         const unsubscribeMsg = {
             correlationID: "watchlist_" + Date.now(),
-            action: 2, // Unsubscribe action
+            action: 2,
             params: {
                 mode: 3,
                 tokenList: this.groupTokensByExchange(tokens)
             }
         };
-
-        window.dispatchEvent(new CustomEvent('websocketUnsubscribe', { 
-            detail: unsubscribeMsg 
-        }));
+        window.dispatchEvent(new CustomEvent('websocketUnsubscribe', { detail: unsubscribeMsg }));
     },
 
     groupTokensByExchange(tokens) {
@@ -81,45 +124,40 @@ const WatchlistManager = {
             }
             exchangeTokens.get(exchType).push(token);
         });
-
         return Array.from(exchangeTokens).map(([exchangeType, tokens]) => ({
             exchangeType,
             tokens
         }));
     },
 
+    /**
+     * Event Listeners
+     */
     bindEventListeners() {
-        // Watchlist Creation
-        document.getElementById('create-watchlist-btn')?.addEventListener('click', () => this.createWatchlist());
-        document.getElementById('create-new-watchlist-btn')?.addEventListener('click', () => this.createWatchlist());
-        
-        // Watchlist Modal
+        this.bindWatchlistControls();
+        this.bindSymbolControls();
+        this.bindTabControls();
+        this.bindSettingsControls();
+    },
+
+    bindWatchlistControls() {
+        ['create-watchlist-btn', 'create-new-watchlist-btn'].forEach(id => {
+            document.getElementById(id)?.addEventListener('click', () => this.createWatchlist());
+        });
+
         document.getElementById('manage-watchlist-btn')?.addEventListener('click', () => {
             document.getElementById('watchlist-modal').showModal();
             this.loadWatchlistSettings();
         });
 
-        // Settings Changes
-        ['show-ltp-change', 'show-ltp-change-percent', 'show-holdings'].forEach(id => {
-            document.getElementById(id)?.addEventListener('change', () => this.updateSettings());
-        });
-
-        // Watchlist Edit/Delete
         document.querySelectorAll('.edit-watchlist-btn').forEach(btn =>
             btn.addEventListener('click', (e) => this.editWatchlistName(e)));
         
         document.querySelectorAll('.delete-watchlist-btn').forEach(btn =>
             btn.addEventListener('click', (e) => this.deleteWatchlist(e)));
-            
-        // Updated tab switching handler
-        document.querySelectorAll('.tab-btn').forEach(tab =>
-            tab.addEventListener('click', async (e) => {
-                const watchlistId = e.target.dataset.watchlistId;
-                await this.switchTab(e.target);
-                await this.handleTabActivation(watchlistId);
-            }));
+    },
 
-        // Updated symbol removal handler
+    bindSymbolControls() {
         document.querySelectorAll('.remove-item-btn').forEach(btn =>
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -127,137 +165,39 @@ const WatchlistManager = {
             }));
     },
 
-    async removeSymbol(event) {
-        event.preventDefault();
-        event.stopPropagation();
-        
-        const itemId = event.currentTarget.dataset.itemId;
-        const watchlistItem = event.currentTarget.closest('.watchlist-item');
-        
-        if (!watchlistItem) return;
-        
-        const token = watchlistItem.dataset.token;
-        const exchType = parseInt(watchlistItem.dataset.exchType);
-
-        try {
-            const response = await this.makeRequest('/remove_watchlist_item', {
-                method: 'POST',
-                body: JSON.stringify({ item_id: itemId })
-            });
-
-            if (response.status === 'success') {
-                // Remove from active subscriptions immediately
-                const activeWatchlistId = document.querySelector('.tab-active').dataset.watchlistId;
-                const currentTokens = this.activeSubscriptions.get(activeWatchlistId) || [];
-                this.activeSubscriptions.set(
-                    activeWatchlistId,
-                    currentTokens.filter(t => t.token !== token)
-                );
-
-                // Unsubscribe from the WebSocket
-                await this.unsubscribeFromSymbols([{ token, exchType }]);
-
-                // Remove from DOM immediately
-                watchlistItem.remove();
-
-                // Check if watchlist is now empty
-                const watchlistContent = document.querySelector('.watchlist-content:not(.hidden)');
-                if (watchlistContent && !watchlistContent.querySelector('.watchlist-item')) {
-                    watchlistContent.innerHTML = `
-                        <div class="text-center text-base-content/70 py-4">
-                            No items in this watchlist
-                        </div>
-                    `;
-                }
-
-                // Notify other components
-                window.dispatchEvent(new CustomEvent('symbolRemoved', { 
-                    detail: { token, exchType } 
-                }));
-            } else {
-                console.error('Error removing symbol:', response.message);
-            }
-        } catch (error) {
-            console.error('Error removing symbol:', error);
-        }
+    bindTabControls() {
+        document.querySelectorAll('.tab-btn').forEach(tab =>
+            tab.addEventListener('click', async (e) => {
+                const watchlistId = e.target.dataset.watchlistId;
+                await this.switchTab(e.target);
+                await this.handleTabActivation(watchlistId);
+            }));
     },
 
-    async handleTabActivation(newWatchlistId) {
-        try {
-            // Unsubscribe from previous watchlist's symbols
-            for (const [watchlistId, tokens] of this.activeSubscriptions.entries()) {
-                if (watchlistId !== newWatchlistId) {
-                    await this.unsubscribeFromSymbols(tokens);
-                    this.activeSubscriptions.delete(watchlistId);
-                }
-            }
-
-            // Subscribe to new watchlist's symbols
-            const watchlistContent = document.getElementById(`watchlist-${newWatchlistId}`);
-            if (watchlistContent) {
-                const symbols = Array.from(watchlistContent.querySelectorAll('[data-token]'));
-                const tokens = symbols.map(symbol => ({
-                    token: symbol.dataset.token,
-                    exchType: parseInt(symbol.dataset.exchType)
-                }));
-
-                if (tokens.length > 0) {
-                    await this.subscribeToSymbols(tokens);
-                    this.activeSubscriptions.set(newWatchlistId, tokens);
-                    console.log('Subscribed to tokens for watchlist:', newWatchlistId, tokens);
-                }
-            }
-        } catch (error) {
-            console.error('Error during tab activation:', error);
-        }
-    },
-
-    switchTab(tab, reload = false) {
-        // Remove active class from all tabs
-        document.querySelectorAll('.tab-btn').forEach(t => {
-            t.classList.remove('tab-active');
+    bindSettingsControls() {
+        ['show-ltp-change', 'show-ltp-change-percent', 'show-holdings'].forEach(id => {
+            document.getElementById(id)?.addEventListener('change', () => this.updateSettings());
         });
-        
-        // Hide all watchlist contents
-        document.querySelectorAll('.watchlist-content').forEach(content => {
-            content.classList.add('hidden');
-        });
-        
-        // Add active class to clicked tab
-        tab.classList.add('tab-active');
-        
-        // Show corresponding watchlist content
-        const watchlistId = tab.dataset.watchlistId;
-        const watchlistContent = document.getElementById(`watchlist-${watchlistId}`);
-        if (watchlistContent) {
-            watchlistContent.classList.remove('hidden');
-            // Trigger subscription update for the new active tab
-            this.handleTabActivation(watchlistId);
-        }
-
-        // Only reload if explicitly requested
-        if (reload) {
-            location.reload();
-        }
     },
 
-
+    /**
+     * Symbol Search Management
+     */
     initializeSearch() {
         const searchInput = document.getElementById('search-symbol-input');
         const searchResults = document.getElementById('search-results');
 
         searchInput?.addEventListener('input', (e) => {
-            clearTimeout(this.searchTimeout);
+            clearTimeout(this.state.searchTimeout);
             const query = e.target.value.trim();
 
             if (query.length >= 2) {
-                this.searchTimeout = setTimeout(() => this.performSearch(query), 300);
+                this.state.searchTimeout = setTimeout(() => this.performSearch(query), 300);
             } else {
                 searchResults.innerHTML = '';
             }
         });
 
-        // Hide search results when clicking outside
         document.addEventListener('click', (e) => {
             if (!e.target.closest('#search-symbol-input') && !e.target.closest('#search-results')) {
                 searchResults.innerHTML = '';
@@ -289,6 +229,9 @@ const WatchlistManager = {
         `).join('');
     },
 
+    /**
+     * Watchlist CRUD Operations
+     */
     async createWatchlist() {
         const name = prompt('Enter watchlist name:');
         if (!name) return;
@@ -301,8 +244,6 @@ const WatchlistManager = {
 
             if (response.status === 'success') {
                 location.reload();
-            } else {
-                console.error('Error creating watchlist:', response.message);
             }
         } catch (error) {
             console.error('Error:', error);
@@ -334,8 +275,6 @@ const WatchlistManager = {
 
                     if (response.status === 'success') {
                         nameElement.textContent = newName;
-                    } else {
-                        console.error('Error updating watchlist name:', response.message);
                     }
                 } catch (error) {
                     console.error('Error:', error);
@@ -358,9 +297,7 @@ const WatchlistManager = {
         event.preventDefault();
         const watchlistId = event.currentTarget.dataset.watchlistId;
         
-        if (!confirm('Are you sure you want to delete this watchlist?')) {
-            return;
-        }
+        if (!confirm('Are you sure you want to delete this watchlist?')) return;
 
         try {
             const response = await this.makeRequest('/delete_watchlist', {
@@ -369,56 +306,14 @@ const WatchlistManager = {
             });
 
             if (response.status === 'success') {
-                // Remove watchlist from active subscriptions
-                if (this.activeSubscriptions.has(watchlistId)) {
-                    const tokens = this.activeSubscriptions.get(watchlistId);
+                if (this.state.activeSubscriptions.has(watchlistId)) {
+                    const tokens = this.state.activeSubscriptions.get(watchlistId);
                     await this.unsubscribeFromSymbols(tokens);
-                    this.activeSubscriptions.delete(watchlistId);
+                    this.state.activeSubscriptions.delete(watchlistId);
                 }
 
-                // Remove watchlist tab and content from DOM
-                const tab = document.querySelector(`[data-watchlist-id="${watchlistId}"]`);
-                const content = document.getElementById(`watchlist-${watchlistId}`);
-                const watchlistRow = document.getElementById(`watchlist-row-${watchlistId}`);
-                
-                if (tab) tab.remove();
-                if (content) content.remove();
-                if (watchlistRow) watchlistRow.remove();
-
-                // If this was the active tab, switch to another tab if available
-                if (tab?.classList.contains('tab-active')) {
-                    const remainingTab = document.querySelector('.tab-btn');
-                    if (remainingTab) {
-                        this.switchTab(remainingTab);
-                    } else {
-                        // No tabs left, show empty state
-                        const watchlistsDiv = document.getElementById('watchlists');
-                        if (watchlistsDiv) {
-                            watchlistsDiv.innerHTML = `
-                                <div class="text-center text-base-content/70 py-8">
-                                    <p class="mb-4">No watchlists created yet</p>
-                                    <p class="text-sm">Click the "Add" button to create your first watchlist</p>
-                                </div>
-                            `;
-                        }
-                    }
-                }
-
-                // Close the modal if it's open
-                const modal = document.getElementById('watchlist-modal');
-                if (modal) {
-                    modal.close();
-                }
-
-                // Optional: Show success message
-                const toast = document.createElement('div');
-                toast.className = 'toast toast-success';
-                toast.textContent = 'Watchlist deleted successfully';
-                document.body.appendChild(toast);
-                setTimeout(() => toast.remove(), 3000);
-            } else {
-                console.error('Error deleting watchlist:', response.message);
-                alert('Failed to delete watchlist. Please try again.');
+                this.removeWatchlistFromDOM(watchlistId);
+                document.getElementById('watchlist-modal')?.close();
             }
         } catch (error) {
             console.error('Error:', error);
@@ -426,6 +321,29 @@ const WatchlistManager = {
         }
     },
 
+    removeWatchlistFromDOM(watchlistId) {
+        const tab = document.querySelector(`[data-watchlist-id="${watchlistId}"]`);
+        const content = document.getElementById(`watchlist-${watchlistId}`);
+        const watchlistRow = document.getElementById(`watchlist-row-${watchlistId}`);
+        
+        [tab, content, watchlistRow].forEach(el => el?.remove());
+
+        if (tab?.classList.contains('tab-active')) {
+            const remainingTab = document.querySelector('.tab-btn');
+            if (remainingTab) {
+                this.switchTab(remainingTab);
+            } else {
+                const watchlistsDiv = document.getElementById('watchlists');
+                if (watchlistsDiv) {
+                    watchlistsDiv.innerHTML = this.getTemplate('emptyWatchlist');
+                }
+            }
+        }
+    },
+
+    /**
+     * Symbol Management
+     */
     async addSymbolToWatchlist(symbol, exchSeg) {
         const activeWatchlist = document.querySelector('.tab-active');
         if (!activeWatchlist) return;
@@ -437,180 +355,134 @@ const WatchlistManager = {
                 method: 'POST',
                 body: JSON.stringify({
                     watchlist_id: watchlistId,
-                    symbol: symbol,
+                    symbol,
                     exch_seg: exchSeg
                 })
             });
 
             if (response.status === 'success') {
-                // Clear search
-                document.getElementById('search-results').innerHTML = '';
-                document.getElementById('search-symbol-input').value = '';
-
-                // Get the current watchlist content container
-                const watchlistContent = document.getElementById(`watchlist-${watchlistId}`);
-                const symbolList = watchlistContent.querySelector('ul');
-
-                // Check if this is the first symbol being added
-                const isFirstSymbol = !symbolList.querySelector('.watchlist-item');
-                if (isFirstSymbol) {
-                    symbolList.innerHTML = ''; // Clear "no items" message if present
-                }
-
-                // Create new symbol element
-                const newSymbolItem = this.createSymbolListItem(response.data);
-                symbolList.appendChild(newSymbolItem);
-
-                // Create subscription data for the new symbol
-                const newSymbolData = {
-                    token: response.data.token,
-                    exchType: this.getExchTypeCode(response.data.exch_seg)
-                };
-
-                // Add to active subscriptions
-                const currentTokens = this.activeSubscriptions.get(watchlistId) || [];
-                currentTokens.push(newSymbolData);
-                this.activeSubscriptions.set(watchlistId, currentTokens);
-
-                // Subscribe to the new symbol's data feed
-                await this.subscribeToSymbols([newSymbolData]);
-
-                // Notify other components
-                window.dispatchEvent(new CustomEvent('symbolAdded', { 
-                    detail: {
-                        ...response.data,
-                        exchType: this.getExchTypeCode(response.data.exch_seg)
-                    }
-                }));
-
-                console.log('Symbol added successfully:', newSymbolData);
-            } else {
-                console.error('Error adding symbol:', response.message);
+                this.clearSearch();
+                await this.addSymbolToDOM(response.data, watchlistId);
             }
         } catch (error) {
             console.error('Error:', error);
         }
     },
 
-    createSymbolListItem(symbolData) {
+    clearSearch() {
+        document.getElementById('search-results').innerHTML = '';
+        document.getElementById('search-symbol-input').value = '';
+    },
+
+    async addSymbolToDOM(symbolData, watchlistId) {
+        const watchlistContent = document.getElementById(`watchlist-${watchlistId}`);
+        const symbolList = watchlistContent.querySelector('ul');
+
+        if (!symbolList.querySelector('.watchlist-item')) {
+            symbolList.innerHTML = '';
+        }
+
         const li = document.createElement('li');
         li.className = 'watchlist-item bg-base-100 rounded-lg overflow-hidden shadow-sm';
         li.id = `item-${symbolData.token}`;
         li.setAttribute('data-token', symbolData.token);
         li.setAttribute('data-exch-type', this.getExchTypeCode(symbolData.exch_seg));
         
-        li.innerHTML = `
-            <div class="flex justify-between items-center p-3 hover:bg-base-200 cursor-pointer"
-                 onclick="toggleDepth('depth-${symbolData.token}')">
-                <div class="flex flex-col">
-                    <span class="font-medium">${symbolData.symbol}</span>
-                    <span class="text-xs text-base-content/70">${symbolData.exch_seg}</span>
-                </div>
-                <div class="flex items-center gap-4">
-                    <div class="text-right">
-                        <div class="font-medium ltp">--</div>
-                        <div class="flex items-center gap-1 text-xs">
-                            <span class="change">0.00</span>
-                            <span class="change-percent">(0.00%)</span>
-                        </div>
-                    </div>
-                    <button class="btn btn-ghost btn-xs remove-item-btn" 
-                            data-item-id="${symbolData.id}"
-                            onclick="event.stopPropagation(); WatchlistManager.removeSymbol(event)">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            <!-- Market Depth Section -->
-            <div id="depth-${symbolData.token}" class="hidden border-t border-base-200">
-                <div class="p-3 space-y-2">
-                    <!-- Market Stats -->
-                    <div class="grid grid-cols-4 gap-2 text-xs border-b border-base-200 pb-2">
-                        <div>O: <span class="open">--</span></div>
-                        <div>H: <span class="high">--</span></div>
-                        <div>L: <span class="low">--</span></div>
-                        <div>C: <span class="close">--</span></div>
-                    </div>
-                    <!-- Depth Table -->
-                    <table class="w-full text-xs">
-                        <thead class="text-base-content/70">
-                            <tr>
-                                <th class="py-1 text-right">Qty</th>
-                                <th class="py-1 text-right">Orders</th>
-                                <th class="py-1 text-right text-green-500">Bid</th>
-                                <th class="py-1 text-right text-red-500">Ask</th>
-                                <th class="py-1 text-right">Orders</th>
-                                <th class="py-1 text-right">Qty</th>
-                            </tr>
-                        </thead>
-                        <tbody class="depth-data">
-                            <!-- Depth data will be injected here -->
-                        </tbody>
-                    </table>
-                    <!-- Volume and Buy/Sell Quantities -->
-                    <div class="flex justify-between text-xs text-base-content/70 pt-2 border-t border-base-200">
-                        <div>Vol: <span class="volume">--</span></div>
-                        <div>
-                            Buy: <span class="total-buy-qty">--</span> | 
-                            Sell: <span class="total-sell-qty">--</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
+        li.innerHTML = this.getTemplate('symbolListItem', symbolData) + 
+                      this.getTemplate('marketDepth', symbolData);
 
-        // Add click handler for the remove button
-        const removeButton = li.querySelector('.remove-item-btn');
-        removeButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.removeSymbol(e);
-        });
+        symbolList.appendChild(li);
 
-        return li;
-    },
-
-    getExchTypeCode(exchSeg) {
-        const exchMap = {
-            'NSE': 1,     // nse_cm
-            'NFO': 2,     // nse_fo
-            'BSE': 3,     // bse_cm
-            'BFO': 4,     // bse_fo
-            'MCX': 5,     // mcx_fo
-            'NCX': 7,     // ncx_fo
-            'CDS': 13     // cde_fo
+        const newSymbolData = {
+            token: symbolData.token,
+            exchType: this.getExchTypeCode(symbolData.exch_seg)
         };
-        return exchMap[exchSeg] || 1;
+
+        const currentTokens = this.state.activeSubscriptions.get(watchlistId) || [];
+        currentTokens.push(newSymbolData);
+        this.state.activeSubscriptions.set(watchlistId, currentTokens);
+
+        await this.subscribeToSymbols([newSymbolData]);
+        window.dispatchEvent(new CustomEvent('symbolAdded', { 
+            detail: {
+                ...symbolData,
+                exchType: this.getExchTypeCode(symbolData.exch_seg)
+            }
+        }));
     },
 
+    async removeSymbol(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const itemId = event.currentTarget.dataset.itemId;
+        const watchlistItem = event.currentTarget.closest('.watchlist-item');
+        if (!watchlistItem) return;
+        
+        const token = watchlistItem.dataset.token;
+        const exchType = parseInt(watchlistItem.dataset.exchType);
+
+        try {
+            const response = await this.makeRequest('/remove_watchlist_item', {
+                method: 'POST',
+                body: JSON.stringify({ item_id: itemId })
+            });
+
+            if (response.status === 'success') {
+                await this.removeSymbolFromDOM(token, exchType, watchlistItem);
+            }
+        } catch (error) {
+            console.error('Error removing symbol:', error);
+        }
+    },
+
+    async removeSymbolFromDOM(token, exchType, watchlistItem) {
+        const activeWatchlistId = document.querySelector('.tab-active').dataset.watchlistId;
+        const currentTokens = this.state.activeSubscriptions.get(activeWatchlistId) || [];
+        
+        this.state.activeSubscriptions.set(
+            activeWatchlistId,
+            currentTokens.filter(t => t.token !== token)
+        );
+
+        await this.unsubscribeFromSymbols([{ token, exchType }]);
+        watchlistItem.remove();
+
+        const watchlistContent = document.querySelector('.watchlist-content:not(.hidden)');
+        if (watchlistContent && !watchlistContent.querySelector('.watchlist-item')) {
+            watchlistContent.innerHTML = `
+                <div class="text-center text-base-content/70 py-4">
+                    No items in this watchlist
+                </div>
+            `;
+        }
+
+        window.dispatchEvent(new CustomEvent('symbolRemoved', { 
+            detail: { token, exchType } 
+        }));
+    },
+
+    /**
+     * UI Management
+     */
     switchTab(tab, reload = false) {
-        // Remove active class from all tabs
-        document.querySelectorAll('.tab-btn').forEach(t => {
-            t.classList.remove('tab-active');
-        });
+        document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('tab-active'));
+        document.querySelectorAll('.watchlist-content').forEach(content => content.classList.add('hidden'));
         
-        // Hide all watchlist contents
-        document.querySelectorAll('.watchlist-content').forEach(content => {
-            content.classList.add('hidden');
-        });
-        
-        // Add active class to clicked tab
         tab.classList.add('tab-active');
         
-        // Show corresponding watchlist content
         const watchlistId = tab.dataset.watchlistId;
         const watchlistContent = document.getElementById(`watchlist-${watchlistId}`);
         if (watchlistContent) {
             watchlistContent.classList.remove('hidden');
         }
 
-        // Only reload if explicitly requested
-        if (reload) {
-            location.reload();
-        }
+        if (reload) location.reload();
     },
-    
+
+    /**
+     * Settings Management
+     */
     async updateSettings() {
         const settings = {
             show_ltp_change: document.getElementById('show-ltp-change').checked,
@@ -626,24 +498,11 @@ const WatchlistManager = {
 
             if (response.status === 'success') {
                 this.updateDisplaySettings(settings);
-                // Dispatch a custom event with the new settings
                 window.dispatchEvent(new CustomEvent('watchlistSettingsUpdated', { detail: settings }));
             }
         } catch (error) {
             console.error('Error updating settings:', error);
         }
-    },
-
-    async makeRequest(url, options = {}) {
-        const defaultOptions = {
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': this.csrfToken
-            }
-        };
-
-        const response = await fetch(url, { ...defaultOptions, ...options });
-        return response.json();
     },
 
     updateDisplaySettings(settings) {
@@ -653,6 +512,28 @@ const WatchlistManager = {
             el.classList.toggle('hidden', !settings.show_ltp_change_percent));
         document.querySelectorAll('.holdings').forEach(el => 
             el.classList.toggle('hidden', !settings.show_holdings));
+    },
+
+    /**
+     * Utility Functions
+     */
+    async makeRequest(url, options = {}) {
+        const defaultOptions = {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': this.state.csrfToken
+            }
+        };
+        const response = await fetch(url, { ...defaultOptions, ...options });
+        return response.json();
+    },
+
+    getExchTypeCode(exchSeg) {
+        const exchMap = {
+            'NSE': 1, 'NFO': 2, 'BSE': 3, 'BFO': 4,
+            'MCX': 5, 'NCX': 7, 'CDS': 13
+        };
+        return exchMap[exchSeg] || 1;
     }
 };
 

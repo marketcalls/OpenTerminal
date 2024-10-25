@@ -15,6 +15,11 @@ class MarketDataService:
             'NCX': 7,     # ncx_fo
             'CDS': 13     # cde_fo
         }
+        # Add index tokens
+        self.index_tokens = [
+            {"token": "99926000", "symbol": "Nifty 50", "name": "NIFTY", "exch_seg": "NSE"},
+            {"token": "99919000", "symbol": "SENSEX", "name": "SENSEX", "exch_seg": "BSE"}
+        ]
 
     def get_user_tokens(self, client_id):
         """Get WebSocket tokens for market data streaming"""
@@ -59,7 +64,8 @@ class MarketDataService:
                 watchlists_data = self._format_watchlist_data(watchlists)
                 set_cached_data(redis_key, watchlists_data)
 
-            subscription_data = self._prepare_subscription_data(watchlists_data)
+            # Add index tokens to subscription data
+            subscription_data = self._prepare_subscription_data(watchlists_data, include_indices=True)
             return {'status': 'success', 'subscription_data': subscription_data}
 
         except Exception as e:
@@ -74,10 +80,22 @@ class MarketDataService:
             if cached_data:
                 return cached_data
 
-            # Replace with real API integration
-            data = self._get_dummy_indices()
-            set_cached_data(indices_key, data, expire=60)
-            return data
+            # Return structure for real-time data
+            return {
+                'nifty': {
+                    'token': '99926000',
+                    'value': '--',
+                    'change': '--',
+                    'change_percent': '--'
+                },
+                'sensex': {
+                    'token': '99919000',
+                    'value': '--',
+                    'change': '--',
+                    'change_percent': '--'
+                },
+                'last_updated': datetime.now().isoformat()
+            }
             
         except Exception as e:
             print(f"Error fetching indices: {str(e)}")
@@ -115,10 +133,11 @@ class MarketDataService:
             } for item in watchlist.items]
         } for watchlist in watchlists]
 
-    def _prepare_subscription_data(self, watchlists):
+    def _prepare_subscription_data(self, watchlists, include_indices=False):
         """Prepare WebSocket subscription data"""
         exchange_tokens = {}
         
+        # Add watchlist tokens
         for watchlist in watchlists:
             for item in watchlist.get('items_list', []):
                 exch_type = self.exchange_map.get(item['exch_seg'])
@@ -127,6 +146,16 @@ class MarketDataService:
                         exchange_tokens[exch_type] = []
                     if item['token'] not in exchange_tokens[exch_type]:
                         exchange_tokens[exch_type].append(item['token'])
+
+        # Add index tokens
+        if include_indices:
+            for index in self.index_tokens:
+                exch_type = self.exchange_map.get(index['exch_seg'])
+                if exch_type:
+                    if exch_type not in exchange_tokens:
+                        exchange_tokens[exch_type] = []
+                    if index['token'] not in exchange_tokens[exch_type]:
+                        exchange_tokens[exch_type].append(index['token'])
 
         return {
             "action": 1,
@@ -142,31 +171,17 @@ class MarketDataService:
             }
         }
 
-    def _get_dummy_indices(self):
-        """Generate dummy indices data"""
-        return {
-            'nifty': {
-                'value': '24,435.50',
-                'change': '-36.60',
-                'change_percent': '(-0.15%)'
-            },
-            'sensex': {
-                'value': '51,244.50',
-                'change': '-12.65',
-                'change_percent': '(-0.02%)'
-            },
-            'last_updated': datetime.now().isoformat()
-        }
-
     def _get_fallback_indices(self):
         """Return fallback data when unable to fetch indices"""
         return {
             'nifty': {
+                'token': '99926000',
                 'value': '--',
                 'change': '--',
                 'change_percent': '--'
             },
             'sensex': {
+                'token': '99919000',
                 'value': '--',
                 'change': '--',
                 'change_percent': '--'
