@@ -5,6 +5,12 @@ document.addEventListener('DOMContentLoaded', function() {
     let heartbeatInterval;
     let currentSubscriptions = new Set();
 
+    // Add index tokens
+    const INDEX_TOKENS = {
+        NIFTY: { token: "99926000", exchType: 1 },  // NSE
+        SENSEX: { token: "99919000", exchType: 3 }  // BSE
+    };
+
     async function fetchTokens() {
         try {
             const response = await fetch('/api/get_tokens', {
@@ -46,6 +52,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ws.onopen = function() {
             console.log("WebSocket Connected");
             startHeartbeat();
+            subscribeToIndices();
             subscribeActiveWatchlist();
         };
 
@@ -59,8 +66,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const decodedData = MarketDataDecoder.decode(event.data);
                 console.log('Received data for token:', decodedData.tokenString);
                 
-                if (currentSubscriptions.has(decodedData.tokenString)) {
-                    console.log('Updating data for token:', decodedData.tokenString);
+                if (decodedData.tokenString === INDEX_TOKENS.NIFTY.token) {
+                    updateNiftyData(decodedData);
+                } else if (decodedData.tokenString === INDEX_TOKENS.SENSEX.token) {
+                    updateSensexData(decodedData);
+                } else if (currentSubscriptions.has(decodedData.tokenString)) {
                     MarketDataUpdater.updateData(decodedData);
                 }
             } catch (error) {
@@ -88,6 +98,62 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('Heartbeat sent');
             }
         }, 30000);
+    }
+
+    function subscribeToIndices() {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            console.error('WebSocket not ready for index subscription');
+            return;
+        }
+
+        const subscribeMsg = {
+            correlationID: "indices_" + Date.now(),
+            action: 1,
+            params: {
+                mode: 3,
+                tokenList: [
+                    {
+                        exchangeType: INDEX_TOKENS.NIFTY.exchType,
+                        tokens: [INDEX_TOKENS.NIFTY.token]
+                    },
+                    {
+                        exchangeType: INDEX_TOKENS.SENSEX.exchType,
+                        tokens: [INDEX_TOKENS.SENSEX.token]
+                    }
+                ]
+            }
+        };
+
+        console.log('Subscribing to indices:', subscribeMsg);
+        ws.send(JSON.stringify(subscribeMsg));
+        
+        // Add to current subscriptions
+        currentSubscriptions.add(INDEX_TOKENS.NIFTY.token);
+        currentSubscriptions.add(INDEX_TOKENS.SENSEX.token);
+    }
+
+    function updateNiftyData(data) {
+        const value = data.lastTradedPrice.toFixed(2);
+        const change = (data.lastTradedPrice - data.closePrice).toFixed(2);
+        const changePercent = ((change / data.closePrice) * 100).toFixed(2);
+        const changeClass = change >= 0 ? 'text-green-500' : 'text-red-500';
+
+        document.getElementById('nifty-value').textContent = value;
+        const changeElement = document.getElementById('nifty-change');
+        changeElement.textContent = `${change} (${changePercent}%)`;
+        changeElement.className = changeClass;
+    }
+
+    function updateSensexData(data) {
+        const value = data.lastTradedPrice.toFixed(2);
+        const change = (data.lastTradedPrice - data.closePrice).toFixed(2);
+        const changePercent = ((change / data.closePrice) * 100).toFixed(2);
+        const changeClass = change >= 0 ? 'text-green-500' : 'text-red-500';
+
+        document.getElementById('sensex-value').textContent = value;
+        const changeElement = document.getElementById('sensex-change');
+        changeElement.textContent = `${change} (${changePercent}%)`;
+        changeElement.className = changeClass;
     }
 
     function subscribeActiveWatchlist() {
@@ -135,20 +201,13 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         console.log(`${subscribe ? 'Subscribing to' : 'Unsubscribing from'} tokens:`, tokens);
-        console.log('Subscription message:', subscribeMsg);
-        
         ws.send(JSON.stringify(subscribeMsg));
 
-        // Update current subscriptions with detailed logging
         tokens.forEach(({token}) => {
             if (subscribe) {
                 currentSubscriptions.add(token);
-                console.log('Added subscription for token:', token);
-                console.log('Current subscriptions:', Array.from(currentSubscriptions));
             } else {
                 currentSubscriptions.delete(token);
-                console.log('Removed subscription for token:', token);
-                console.log('Current subscriptions:', Array.from(currentSubscriptions));
             }
         });
     }
@@ -195,7 +254,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Listen for new symbol additions
     window.addEventListener('symbolAdded', function(event) {
         const newSymbolData = event.detail;
         console.log('New symbol added event received:', newSymbolData);
@@ -205,11 +263,9 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Add to current subscriptions
         currentSubscriptions.add(newSymbolData.token);
         console.log('Added to current subscriptions:', newSymbolData.token);
 
-        // Subscribe to the new symbol's data feed
         if (ws && ws.readyState === WebSocket.OPEN) {
             const subscribeMsg = {
                 correlationID: "symbol_add_" + Date.now(),
@@ -230,7 +286,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Event listener for symbol removal
     window.addEventListener('symbolRemoved', function(event) {
         const { token } = event.detail;
         currentSubscriptions.delete(token);
@@ -248,31 +303,8 @@ document.addEventListener('DOMContentLoaded', function() {
     MarketDataUpdater.init(watchlistSettings);
     initializeWebSocket();
 
-    // Listen for settings updates
     window.addEventListener('watchlistSettingsUpdated', function(event) {
         const newSettings = event.detail;
         MarketDataUpdater.updateSettings(newSettings);
     });
-
-    // Update indices
-    function updateIndices() {
-        fetch('/get_indices')
-            .then(response => response.json())
-            .then(data => {
-                if (data.nifty) {
-                    document.getElementById('nifty-value').textContent = data.nifty.value;
-                    document.getElementById('nifty-change').textContent = 
-                        `${data.nifty.change} ${data.nifty.change_percent}`;
-                }
-                if (data.sensex) {
-                    document.getElementById('sensex-value').textContent = data.sensex.value;
-                    document.getElementById('sensex-change').textContent = 
-                        `${data.sensex.change} ${data.sensex.change_percent}`;
-                }
-            })
-            .catch(error => console.error('Error updating indices:', error));
-    }
-
-    updateIndices();
-    setInterval(updateIndices, 60000);
 });

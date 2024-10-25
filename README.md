@@ -47,22 +47,50 @@ openterminal/
 ├── extensions.py         # Database and extensions
 ├── master_contract.py    # Market data handling
 ├── models.py             # Database models
-├── triggerdb.py         # Database triggers
-├── routes/              
-│   ├── auth.py          # Authentication routes
-│   ├── dashboard.py     # Dashboard management
-│   ├── funds.py         # Funds routes
-│   ├── home.py          # Home routes
-│   └── orders.py        # Order management
+├── triggerdb.py          # Database triggers
+├── README.md             # Project documentation
+├── requirements.txt      # Dependencies
+├── vercel.json           # Vercel deployment configuration
+├── instance/             # Instance-specific data
+├── routes/               
+│   ├── __init__.py
+│   ├── auth.py           # Authentication routes
+│   ├── funds.py          # Funds routes
+│   ├── home.py           # Home routes
+│   ├── orders.py         # Order management
+│   └── dashboard/
+│       ├── __init__.py
+│       ├── market_data_service.py
+│       ├── routes.py
+│       ├── settings_service.py
+│       ├── utils.py
+│       └── watchlist_service.py
 ├── static/             
 │   └── js/
-│       ├── dashboard.js       # Main dashboard logic
+│       ├── dashboard.js  # Main dashboard logic
 │       └── modules/
-│           ├── marketDataDecoder.js  # Real-time Websocket decoder
-│           ├── marketDataUpdater.js  # Real-time updates
-│           └── watchlistManager.js   # Watchlist operations
-├── templates/           # HTML templates
-└── requirements.txt     # Dependencies
+│           ├── marketDataDecoder.js    # Real-time Websocket decoder
+│           ├── marketDataUpdater.js    # Real-time updates
+│           ├── watchlistCore.js        # Core watchlist functionality
+│           ├── watchlistEvents.js      # Watchlist event handlers
+│           ├── watchlistManager.js     # Watchlist management
+│           ├── watchlistOperations.js  # Watchlist operations
+│           └── templates/
+│               ├── emptyWatchlist.html
+│               ├── marketDepth.html
+│               └── symbolListItem.html
+└── templates/           # HTML templates
+    ├── about.html
+    ├── dashboard.html
+    ├── funds.html
+    ├── holdings.html
+    ├── index.html
+    ├── layout.html
+    ├── login.html
+    ├── orderbook.html
+    ├── positions.html
+    ├── register.html
+    └── tradebook.html
 ```
 
 ## Installation
