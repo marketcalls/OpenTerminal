@@ -21,21 +21,66 @@ const WatchlistOperations = {
             return;
         }
 
-        const name = prompt('Enter watchlist name:');
-        if (!name) return;
+        // Create and show the modal
+        const modal = document.createElement('dialog');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-box bg-base-300">
+                <form method="dialog">
+                    <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+                </form>
+                <h3 class="font-bold text-lg mb-4">Create New Watchlist</h3>
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text">Watchlist Name</span>
+                    </label>
+                    <input type="text" id="watchlist-name-input" placeholder="Enter watchlist name" 
+                           class="input input-bordered w-full" />
+                </div>
+                <div class="modal-action">
+                    <button class="btn btn-ghost" onclick="this.closest('dialog').close()">Cancel</button>
+                    <button class="btn btn-primary" id="confirm-create-watchlist">Create</button>
+                </div>
+            </div>
+        `;
 
-        try {
-            const response = await WatchlistCore.makeRequest('/create_watchlist', {
-                method: 'POST',
-                body: JSON.stringify({ name })
-            });
+        document.body.appendChild(modal);
+        modal.showModal();
 
-            if (response.status === 'success') {
-                location.reload();
+        const nameInput = modal.querySelector('#watchlist-name-input');
+        const confirmBtn = modal.querySelector('#confirm-create-watchlist');
+
+        // Handle creation
+        confirmBtn.addEventListener('click', async () => {
+            const name = nameInput.value.trim();
+            if (!name) return;
+
+            try {
+                const response = await WatchlistCore.makeRequest('/create_watchlist', {
+                    method: 'POST',
+                    body: JSON.stringify({ name })
+                });
+
+                if (response.status === 'success') {
+                    location.reload();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            } finally {
+                modal.close();
+                modal.remove();
             }
-        } catch (error) {
-            console.error('Error:', error);
-        }
+        });
+
+        // Handle Enter key
+        nameInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                confirmBtn.click();
+            }
+        });
+
+        // Focus input when modal opens
+        nameInput.focus();
     },
 
     async editWatchlistName(event) {
