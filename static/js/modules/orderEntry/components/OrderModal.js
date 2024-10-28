@@ -16,6 +16,7 @@ const OrderModal = (function() {
         }
 
         setupEventListeners();
+        initializeButtonStates();
     }
 
     function setupEventListeners() {
@@ -36,40 +37,100 @@ const OrderModal = (function() {
         });
 
         // Buy/Sell toggle
-        const buyBtn = modal.querySelector('.buy-toggle');
-        const sellBtn = modal.querySelector('.sell-toggle');
-        if (buyBtn && sellBtn) {
-            buyBtn.addEventListener('click', () => setSide('BUY'));
-            sellBtn.addEventListener('click', () => setSide('SELL'));
-        }
+        modal.querySelector('.buy-toggle')?.addEventListener('click', () => setSide('BUY'));
+        modal.querySelector('.sell-toggle')?.addEventListener('click', () => setSide('SELL'));
+
+        // Product type changes
+        modal.querySelectorAll('input[name="producttype"]').forEach(radio => {
+            radio.addEventListener('change', handleProductTypeChange);
+        });
+
+        // Order type changes
+        modal.querySelectorAll('input[name="ordertype"]').forEach(radio => {
+            radio.addEventListener('change', handleOrderTypeChange);
+        });
+
+        // Quantity controls
+        setupQuantityControls();
+
+        // Price controls
+        setupPriceControls();
+
+        // Market Depth toggle
+        modal.querySelector('.market-depth-toggle')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleMarketDepth();
+        });
 
         // Form submission
-        const form = modal.querySelector('form');
-        if (form) {
-            form.addEventListener('submit', handleSubmit);
+        modal.querySelector('form')?.addEventListener('submit', handleSubmit);
+    }
+
+    function setupQuantityControls() {
+        const qtyInput = modal.querySelector('input[name="quantity"]');
+        const decBtn = modal.querySelector('.qty-decrement');
+        const incBtn = modal.querySelector('.qty-increment');
+
+        if (qtyInput && decBtn && incBtn) {
+            decBtn.addEventListener('click', () => adjustQuantity(-1));
+            incBtn.addEventListener('click', () => adjustQuantity(1));
+            qtyInput.addEventListener('change', validateQuantity);
         }
     }
 
-    function show(symbolData, side = 'BUY') {
+    function setupPriceControls() {
+        const priceInput = modal.querySelector('input[name="price"]');
+        const decBtn = modal.querySelector('.price-decrement');
+        const incBtn = modal.querySelector('.price-increment');
+
+        if (priceInput && decBtn && incBtn) {
+            decBtn.addEventListener('click', () => adjustPrice(-1));
+            incBtn.addEventListener('click', () => adjustPrice(1));
+            priceInput.addEventListener('change', validatePrice);
+        }
+    }
+
+    function show(symbolData, side = 'BUY', price = null) {
         if (!modal) return;
 
         currentSymbol = symbolData;
         orderSide = side;
 
         updateModalContent();
-        modal.showModal();  // Using dialog showModal method
+        
+        // Set price if provided (from market depth click)
+        if (price !== null) {
+            const priceInput = modal.querySelector('input[name="price"]');
+            if (priceInput) {
+                priceInput.value = price.toFixed(2);
+                // Ensure LIMIT order type is selected
+                const limitRadio = modal.querySelector('input[value="LIMIT"]');
+                if (limitRadio) {
+                    limitRadio.checked = true;
+                    handleOrderTypeChange({ target: limitRadio });
+                }
+            }
+        }
+
+        initializeButtonStates();
+        modal.showModal();
     }
 
     function hide() {
         if (!modal) return;
         
-        modal.close();  // Using dialog close method
+        modal.close();
         
         // Reset form
         const form = modal.querySelector('form');
         if (form) form.reset();
 
-        // Call onOrderClose callback if provided
+        // Reset market depth
+        const depthContainer = modal.querySelector('#order-market-depth');
+        if (depthContainer) {
+            depthContainer.classList.add('hidden');
+        }
+
         if (callbacks.onOrderClose) {
             callbacks.onOrderClose();
         }
@@ -81,8 +142,11 @@ const OrderModal = (function() {
         // Update symbol info
         const symbolName = modal.querySelector('.symbol-name');
         const exchangeName = modal.querySelector('.exchange-name');
+        const lotSizeInfo = modal.querySelector('#lot-info .lot-size');
+        
         if (symbolName) symbolName.textContent = currentSymbol.symbol;
         if (exchangeName) exchangeName.textContent = currentSymbol.exchange;
+        if (lotSizeInfo) lotSizeInfo.textContent = currentSymbol.lotSize || 1;
 
         // Update price info
         const priceElement = modal.querySelector('.current-price');
@@ -93,8 +157,24 @@ const OrderModal = (function() {
         // Set order side
         setSide(orderSide);
 
-        // Set default values based on exchange
+        // Update product type based on exchange
+        updateProductType(currentSymbol.exchange);
+
+        // Set default values
         setDefaultValues();
+    }
+
+    function updateProductType(exchange) {
+        const isEquity = ['NSE', 'BSE'].includes(exchange);
+        const deliveryLabel = modal.querySelector('.delivery-type span');
+        const deliveryInput = modal.querySelector('#delivery');
+        
+        if (deliveryLabel) {
+            deliveryLabel.textContent = isEquity ? 'DELIVERY' : 'CARRY FORWARD';
+        }
+        if (deliveryInput) {
+            deliveryInput.value = isEquity ? 'DELIVERY' : 'CARRYFORWARD';
+        }
     }
 
     function setSide(side) {
@@ -103,9 +183,18 @@ const OrderModal = (function() {
         // Update button states
         const buyBtn = modal.querySelector('.buy-toggle');
         const sellBtn = modal.querySelector('.sell-toggle');
+        
         if (buyBtn && sellBtn) {
-            buyBtn.classList.toggle('btn-success', side === 'BUY');
-            sellBtn.classList.toggle('btn-error', side === 'SELL');
+            buyBtn.classList.remove('btn-success', 'btn-ghost');
+            sellBtn.classList.remove('btn-error', 'btn-ghost');
+            
+            if (side === 'BUY') {
+                buyBtn.classList.add('btn-success');
+                sellBtn.classList.add('btn-ghost');
+            } else {
+                buyBtn.classList.add('btn-ghost');
+                sellBtn.classList.add('btn-error');
+            }
         }
 
         // Update form action button
@@ -120,18 +209,24 @@ const OrderModal = (function() {
         const form = modal.querySelector('form');
         if (!form || !currentSymbol) return;
 
+        // Set hidden values
+        form.querySelector('#form-symbol').value = currentSymbol.symbol;
+        form.querySelector('#form-token').value = currentSymbol.token;
+        form.querySelector('#form-exchange').value = currentSymbol.exchange;
+
         // Set quantity
         const qtyInput = form.querySelector('[name="quantity"]');
         if (qtyInput) {
             qtyInput.value = currentSymbol.lotSize || 1;
             qtyInput.setAttribute('min', currentSymbol.lotSize || 1);
             qtyInput.setAttribute('step', currentSymbol.lotSize || 1);
+            updateTotalQuantity(qtyInput.value);
         }
 
         // Set price
         const priceInput = form.querySelector('[name="price"]');
         if (priceInput) {
-            priceInput.value = currentSymbol.ltp || 0;
+            priceInput.value = formatPrice(currentSymbol.ltp || 0);
             priceInput.setAttribute('step', currentSymbol.tickSize || 0.05);
         }
 
@@ -141,7 +236,96 @@ const OrderModal = (function() {
         const productInput = form.querySelector(`[value="${defaultProduct}"]`);
         if (productInput) {
             productInput.checked = true;
+            updateButtonStates(productInput);
         }
+    }
+
+    function handleOrderTypeChange(e) {
+        updateButtonStates(e.target);
+        
+        const priceInput = modal.querySelector('input[name="price"]');
+        const priceControls = modal.querySelector('.price-controls');
+        
+        if (e.target.value === 'MARKET') {
+            priceInput.disabled = true;
+            priceInput.value = '0';
+            priceControls.classList.add('opacity-50');
+        } else {
+            priceInput.disabled = false;
+            priceInput.value = formatPrice(currentSymbol?.ltp || 0);
+            priceControls.classList.remove('opacity-50');
+        }
+    }
+
+    function handleProductTypeChange(e) {
+        updateButtonStates(e.target);
+    }
+
+    function adjustQuantity(direction) {
+        const qtyInput = modal.querySelector('input[name="quantity"]');
+        if (!qtyInput) return;
+
+        const step = parseInt(currentSymbol?.lotSize || 1);
+        const newValue = parseInt(qtyInput.value || 0) + (direction * step);
+        
+        if (newValue >= step) {
+            qtyInput.value = newValue;
+            updateTotalQuantity(newValue);
+        }
+    }
+
+    function adjustPrice(direction) {
+        const priceInput = modal.querySelector('input[name="price"]');
+        if (!priceInput || priceInput.disabled) return;
+
+        const step = parseFloat(currentSymbol?.tickSize || 0.05);
+        const newValue = (parseFloat(priceInput.value) || 0) + (direction * step);
+        
+        if (newValue > 0) {
+            priceInput.value = formatPrice(newValue);
+        }
+    }
+
+    function updateTotalQuantity(qty) {
+        const totalQty = parseInt(qty) * (currentSymbol?.lotSize || 1);
+        const totalQtyElement = modal.querySelector('#total-qty');
+        if (totalQtyElement) {
+            totalQtyElement.textContent = totalQty.toLocaleString('en-IN');
+        }
+    }
+
+    function toggleMarketDepth() {
+        const depthContainer = modal.querySelector('#order-market-depth');
+        const toggleIcon = modal.querySelector('.market-depth-icon');
+        
+        if (depthContainer) {
+            const isHidden = depthContainer.classList.contains('hidden');
+            depthContainer.classList.toggle('hidden');
+            
+            if (toggleIcon) {
+                toggleIcon.style.transform = isHidden ? 'rotate(180deg)' : '';
+            }
+        }
+    }
+
+    function updateButtonStates(input) {
+        const name = input.getAttribute('name');
+        const group = modal.querySelectorAll(`input[name="${name}"]`);
+        
+        group.forEach(radio => {
+            const label = radio.closest('label');
+            if (label) {
+                if (radio.checked) {
+                    label.classList.add('btn-active', 'bg-primary', 'text-primary-content');
+                } else {
+                    label.classList.remove('btn-active', 'bg-primary', 'text-primary-content');
+                }
+            }
+        });
+    }
+
+    function initializeButtonStates() {
+        modal.querySelectorAll('input[type="radio"]:checked').forEach(updateButtonStates);
     }
 
     function handleSubmit(event) {
@@ -164,112 +348,13 @@ const OrderModal = (function() {
             orderData.triggerprice = parseFloat(formData.get('triggerprice'));
         }
 
-        // Call onOrderSubmit callback if provided
         if (callbacks.onOrderSubmit) {
             callbacks.onOrderSubmit(orderData);
         }
     }
 
-    function switchTab(tabId) {
-        const tabs = modal.querySelectorAll('.order-tab');
-        const contents = modal.querySelectorAll('.tab-content');
-        
-        tabs.forEach(tab => {
-            tab.classList.toggle('active', tab.dataset.type === tabId);
-        });
-
-        contents.forEach(content => {
-            content.classList.toggle('hidden', content.dataset.type !== tabId);
-        });
-
-        // Update form variety based on tab
-        const varietyInput = modal.querySelector('[name="variety"]');
-        if (varietyInput) {
-            varietyInput.value = tabId === 'stoploss' ? 'STOPLOSS' : 'NORMAL';
-        }
-    }
-
     function formatPrice(price) {
         return typeof price === 'number' ? price.toFixed(2) : '--';
-    }
-
-    function handleOrderTypeChange(e) {
-        const priceInput = document.querySelector('input[name="price"]');
-        const priceControls = document.querySelector('.price-controls');
-        
-        if (e.target.value === 'MARKET') {
-            priceInput.disabled = true;
-            priceInput.value = '0';
-            priceControls.classList.add('opacity-50');
-        } else {
-            priceInput.disabled = false;
-            priceInput.value = currentSymbol.ltp;
-            priceControls.classList.remove('opacity-50');
-        }
-    }
-
-    // Add event listeners
-    document.querySelectorAll('input[name="ordertype"]').forEach(radio => {
-        radio.addEventListener('change', handleOrderTypeChange);
-    });
-
-    function toggleMarketDepth() {
-        const depthContainer = document.getElementById('order-market-depth');
-        const toggleIcon = document.querySelector('.market-depth-icon');
-        
-        if (depthContainer) {
-            const isHidden = depthContainer.classList.contains('hidden');
-            depthContainer.classList.toggle('hidden', !isHidden);
-            
-            // Rotate icon
-            if (toggleIcon) {
-                toggleIcon.style.transform = isHidden ? 'rotate(180deg)' : '';
-            }
-            
-            // If showing depth, update the data
-            if (!isHidden && currentSymbol) {
-                updateMarketDepth(currentSymbol.token);
-            }
-        }
-    }
-    
-    // Add event listener
-    document.querySelector('.market-depth-toggle')?.addEventListener('click', function(e) {
-        e.preventDefault();
-        toggleMarketDepth();
-    });
-
-    // static/js/modules/orderEntry/components/OrderModal.js
-    function updateProductType(exchange) {
-        const deliveryLabel = document.querySelector('.delivery-type');
-        if (deliveryLabel) {
-            const isEquity = ['NSE', 'BSE'].includes(exchange);
-            const deliveryInput = document.getElementById('delivery');
-            
-            deliveryLabel.textContent = isEquity ? 'DELIVERY' : 'CARRY FORWARD';
-            if (deliveryInput) {
-                deliveryInput.value = isEquity ? 'DELIVERY' : 'CARRYFORWARD';
-            }
-        }
-    }
-
-    function show(symbolData, side = 'BUY') {
-        if (!modal) return;
-
-        currentSymbol = symbolData;
-        orderSide = side;
-
-        // Update symbol info
-        modal.querySelector('.symbol-name').textContent = symbolData.symbol;
-        modal.querySelector('.exchange-name').textContent = symbolData.exchange;
-        
-        // Update product type based on exchange
-        updateProductType(symbolData.exchange);
-
-        // Set initial values
-        setDefaultValues(symbolData);
-
-        modal.showModal();
     }
 
     return {

@@ -6,23 +6,31 @@
     <input type="hidden" name="variety" value="NORMAL">
     
     <!-- Product Type -->
-    <div>
-        <label class="text-sm font-medium mb-2 block">Product Type</label>
-        <div class="join w-full">
-            <input type="radio" id="intraday" name="producttype" 
+<div>
+    <label class="text-sm font-medium mb-2 block">Product Type</label>
+    <div class="join w-full">
+        <label class="join-item btn btn-sm flex-1" 
+               role="button">
+            <input type="radio" name="producttype" 
                    value="INTRADAY" 
+                   class="hidden" 
+                   checked 
+                   onchange="updateButtonStates(this)" />
+            <span>INTRADAY</span>
+        </label>
+        
+        <label class="join-item btn btn-sm flex-1" 
+               role="button">
+            <input type="radio" name="producttype" 
+                   value="DELIVERY" 
                    class="hidden"
-                   checked />
-            <label for="intraday" 
-                   class="join-item btn btn-sm flex-1">INTRADAY</label>
-            
-            <input type="radio" id="delivery" name="producttype" 
-                   value="DELIVERY"
-                   class="hidden" />
-            <label for="delivery" 
-                   class="join-item btn btn-sm flex-1 delivery-type">DELIVERY</label>
-        </div>
+                   onchange="updateButtonStates(this)" />
+            <span class="delivery-text">DELIVERY</span>
+        </label>
     </div>
+</div>
+
+
 
     <!-- Quantity -->
     <div>
@@ -42,33 +50,31 @@
         </div>
     </div>
 
-    <!-- Price -->
-    <div class="price-controls">
-        <div class="flex justify-between mb-2">
-            <label class="text-sm font-medium">Price</label>
-            <div class="join">
-                <label class="join-item btn btn-xs">
-                    <input type="radio" name="ordertype" 
-                           value="LIMIT" 
-                           class="hidden"
-                           checked /> LIMIT
-                </label>
-                <label class="join-item btn btn-xs">
-                    <input type="radio" name="ordertype" 
-                           value="MARKET" 
-                           class="hidden" /> MARKET
-                </label>
-            </div>
-        </div>
-        <div class="join w-full">
-            <button type="button" class="join-item btn btn-sm price-decrement">−</button>
-            <input type="number" 
-                   name="price" 
-                   step="0.05"
-                   class="join-item input input-bordered input-sm w-full text-center" />
-            <button type="button" class="join-item btn btn-sm price-increment">+</button>
+ <!-- Price Type -->
+<div class="price-section">
+    <div class="flex justify-between mb-2">
+        <label class="text-sm font-medium">Price</label>
+        <div class="join">
+            <label class="join-item btn btn-xs" 
+                   role="button">
+                <input type="radio" name="ordertype" 
+                       value="LIMIT" 
+                       class="hidden" 
+                       checked 
+                       onchange="updateButtonStates(this)" />
+                <span>LIMIT</span>
+            </label>
+            <label class="join-item btn btn-xs" 
+                   role="button">
+                <input type="radio" name="ordertype" 
+                       value="MARKET" 
+                       class="hidden"
+                       onchange="updateButtonStates(this)" />
+                <span>MARKET</span>
+            </label>
         </div>
     </div>
+</div>
 
     <!-- Stop Loss Fields (Initially Hidden) -->
     <div id="stoploss-fields" class="hidden">

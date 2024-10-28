@@ -24,30 +24,40 @@ const MarketDataUpdater = {
     updateData(decodedData) {
         const { tokenString } = decodedData;
         const watchlistItems = document.querySelectorAll(`[data-token="${tokenString}"]`);
+        const orderModal = document.getElementById('order-modal');
         
-        if (watchlistItems.length === 0) return;
-        
-        watchlistItems.forEach(watchlistItem => {
-            this.updatePriceInfo(watchlistItem, decodedData);
-            this.updateMarketStats(watchlistItem, decodedData);
-        });
+        if (watchlistItems.length > 0) {
+            watchlistItems.forEach(item => this.updateWatchlistItem(item, decodedData));
+        }
 
-        this.updateMarketDepth(tokenString, decodedData);
-        
+        // Update order modal if open and matching symbol
+        if (orderModal && !orderModal.classList.contains('hidden')) {
+            const modalToken = orderModal.querySelector('#form-token')?.value;
+            if (modalToken === tokenString) {
+                this.updateOrderModal(decodedData);
+            }
+        }
+
         // Cache the current values
         this.previousValues.set(tokenString, decodedData);
     },
+
+    updateWatchlistItem(item, data) {
+        this.updatePriceInfo(item, data);
+        this.updateMarketStats(item, data);
+        this.updateMarketDepth(item, data);
+    },
     
-    updatePriceInfo(element, data) {
-        const ltpElement = element.querySelector('.ltp');
-        const changeElement = element.querySelector('.change');
-        const changePercentElement = element.querySelector('.change-percent');
+    updatePriceInfo(item, data) {
+        const ltpElement = item.querySelector('.ltp');
+        const changeElement = item.querySelector('.change');
+        const changePercentElement = item.querySelector('.change-percent');
         
         if (ltpElement) {
             const previousValue = this.previousValues.get(data.tokenString)?.lastTradedPrice;
             const priceChangeClass = this.getPriceChangeClass(data.lastTradedPrice, previousValue);
             
-            ltpElement.textContent = data.lastTradedPrice.toFixed(2);
+            ltpElement.textContent = this.formatPrice(data.lastTradedPrice);
             ltpElement.className = `ltp ${priceChangeClass}`;
         }
         
@@ -56,7 +66,7 @@ const MarketDataUpdater = {
         const changeClass = change >= 0 ? 'text-green-500' : 'text-red-500';
         
         if (changeElement) {
-            changeElement.textContent = change.toFixed(2);
+            changeElement.textContent = this.formatPrice(change);
             changeElement.className = `change ${changeClass}`;
             changeElement.style.display = this.settings.show_ltp_change ? 'inline' : 'none';
         }
@@ -67,61 +77,84 @@ const MarketDataUpdater = {
             changePercentElement.style.display = this.settings.show_ltp_change_percent ? 'inline' : 'none';
         }
     },
-    
-    updateMarketDepth(tokenString, data) {
-        const depthDiv = document.getElementById(`depth-${tokenString}`);
-        if (!depthDiv) return;
+
+    updateMarketStats(item, data) {
+        // Update OHLC
+        this.updateStat(item, 'open', data.openPrice);
+        this.updateStat(item, 'high', data.highPrice);
+        this.updateStat(item, 'low', data.lowPrice);
+        this.updateStat(item, 'close', data.closePrice);
+        this.updateStat(item, 'volume', data.volTraded);
         
-        const tbody = depthDiv.querySelector('.depth-data');
-        if (!tbody) return;
-        
-        if (!data.bestBids || !data.bestAsks) return;
-        
-        tbody.innerHTML = '';
-        
-        // Ensure we have 5 rows by padding with empty data if necessary
-        const bids = data.bestBids.slice(0, 5).concat(Array(5).fill({ qty: '--', numOrders: '--', price: '--' })).slice(0, 5);
-        const asks = data.bestAsks.slice(0, 5).concat(Array(5).fill({ qty: '--', numOrders: '--', price: '--' })).slice(0, 5);
-        
-        for (let i = 0; i < 5; i++) {
-            const bid = bids[i];
-            const ask = asks[i];
-            
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td class="p-2 text-right">${this.formatNumber(bid.qty)}</td>
-                <td class="p-2 text-right">${bid.numOrders}</td>
-                <td class="p-2 text-right text-green-500 font-medium">${typeof bid.price === 'number' ? bid.price.toFixed(2) : '--'}</td>
-                <td class="p-2 text-right text-red-500 font-medium">${typeof ask.price === 'number' ? ask.price.toFixed(2) : '--'}</td>
-                <td class="p-2 text-right">${ask.numOrders}</td>
-                <td class="p-2 text-right">${this.formatNumber(ask.qty)}</td>
+        // Update total quantities
+        this.updateStat(item, 'total-buy-qty', data.totalBuyQty);
+        this.updateStat(item, 'total-sell-qty', data.totalSellQty);
+    },
+
+    updateMarketDepth(item, data) {
+        const depthElement = item.querySelector('.depth-data');
+        if (!depthElement || !data.bestBids || !data.bestAsks) return;
+
+        let html = '';
+        const maxRows = Math.max(data.bestBids.length, data.bestAsks.length, 5);
+
+        for (let i = 0; i < maxRows; i++) {
+            const bid = data.bestBids[i] || { quantity: '--', orders: '--', price: '--' };
+            const ask = data.bestAsks[i] || { quantity: '--', orders: '--', price: '--' };
+
+            html += `
+                <tr>
+                    <td class="p-2 text-right">${this.formatNumber(bid.quantity)}</td>
+                    <td class="p-2 text-right">${bid.orders}</td>
+                    <td class="p-2 text-right text-green-500 font-medium cursor-pointer hover:opacity-80">${this.formatPrice(bid.price)}</td>
+                    <td class="p-2 text-right text-red-500 font-medium cursor-pointer hover:opacity-80">${this.formatPrice(ask.price)}</td>
+                    <td class="p-2 text-right">${ask.orders}</td>
+                    <td class="p-2 text-right">${this.formatNumber(ask.quantity)}</td>
+                </tr>
             `;
-            tbody.appendChild(row);
+        }
+
+        depthElement.innerHTML = html;
+    },
+
+    updateOrderModal(data) {
+        // Update current price
+        const priceElement = document.querySelector('.current-price');
+        if (priceElement) {
+            priceElement.textContent = this.formatPrice(data.lastTradedPrice);
+        }
+
+        // Update change info
+        const change = data.lastTradedPrice - data.closePrice;
+        const changePercent = (change / data.closePrice) * 100;
+        const changeElement = document.querySelector('.price-change');
+        if (changeElement) {
+            const changeClass = change >= 0 ? 'text-green-500' : 'text-red-500';
+            changeElement.textContent = `${this.formatPrice(change)} (${changePercent.toFixed(2)}%)`;
+            changeElement.className = `text-sm ${changeClass}`;
+        }
+
+        // Update market depth if visible
+        const depthElement = document.querySelector('#order-market-depth .depth-data');
+        if (depthElement && !depthElement.closest('.hidden')) {
+            this.updateMarketDepth({ querySelector: () => depthElement }, data);
+        }
+
+        // Update default price if it's a limit order
+        const priceInput = document.querySelector('input[name="price"]');
+        const orderType = document.querySelector('input[name="ordertype"]:checked')?.value;
+        if (priceInput && orderType === 'LIMIT' && !priceInput.disabled) {
+            priceInput.value = this.formatPrice(data.lastTradedPrice);
         }
     },
-    
-    updateMarketStats(element, data) {
-        this.updateStat(element, 'open', data.openPrice);
-        this.updateStat(element, 'high', data.highPrice);
-        this.updateStat(element, 'low', data.lowPrice);
-        this.updateStat(element, 'close', data.closePrice);
-        this.updateStat(element, 'volume', data.volTraded);
-        
-        if (data.totalBuyQty) {
-            this.updateStat(element, 'total-buy-qty', data.totalBuyQty);
-        }
-        if (data.totalSellQty) {
-            this.updateStat(element, 'total-sell-qty', data.totalSellQty);
-        }
-    },
-    
+
     updateStat(element, statName, value) {
         const statElement = element.querySelector(`.${statName}`);
         if (statElement) {
             statElement.textContent = this.formatValue(value, statName);
         }
     },
-    
+
     formatValue(value, type) {
         switch (type) {
             case 'volume':
@@ -130,11 +163,13 @@ const MarketDataUpdater = {
             case 'total-sell-qty':
                 return this.formatNumber(value);
             default:
-                return value.toFixed(2);
+                return this.formatPrice(value);
         }
     },
-    
+
     formatVolume(volume) {
+        if (!volume || isNaN(volume)) return '--';
+        
         if (volume >= 10000000) {
             return (volume / 10000000).toFixed(2) + ' Cr';
         } else if (volume >= 100000) {
@@ -144,12 +179,17 @@ const MarketDataUpdater = {
         }
         return volume.toString();
     },
-    
+
     formatNumber(num) {
         if (typeof num !== 'number' || isNaN(num)) return '--';
         return num.toLocaleString('en-IN');
     },
-    
+
+    formatPrice(price) {
+        if (typeof price !== 'number' || isNaN(price)) return '--';
+        return price.toFixed(2);
+    },
+
     getPriceChangeClass(currentPrice, previousPrice) {
         if (!previousPrice) return '';
         return currentPrice > previousPrice ? 'text-green-500' : 
