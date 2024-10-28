@@ -55,9 +55,23 @@ openterminal/
 ├── routes/               
 │   ├── __init__.py
 │   ├── auth.py           # Authentication routes
+│   ├── books.py          # Books routes
 │   ├── funds.py          # Funds routes
 │   ├── home.py           # Home routes
-│   ├── orders.py         # Order management
+│   ├── orders/
+│   │   ├── __init__.py
+│   │   ├── constants.py
+│   │   ├── routes.py
+│   │   ├── services/
+│   │   │   ├── order_service.py
+│   │   │   ├── broker_service.py
+│   │   │   └── market_feed.py
+│   │   ├── validators/
+│   │   │   ├── order_validator.py
+│   │   │   └── exchange_rules.py
+│   │   └── utils/
+│   │       ├── formatters.py
+│   │       └── helpers.py
 │   └── dashboard/
 │       ├── __init__.py
 │       ├── market_data_service.py
@@ -75,6 +89,20 @@ openterminal/
 │           ├── watchlistEvents.js      # Watchlist event handlers
 │           ├── watchlistManager.js     # Watchlist management
 │           ├── watchlistOperations.js  # Watchlist operations
+│           ├── orderEntry/
+│           │   ├── components/
+│           │   │   ├── OrderForm.js
+│           │   │   ├── OrderModal.js
+│           │   │   ├── MarketDepth.js
+│           │   │   ├── PriceInput.js
+│           │   │   └── QuantityInput.js
+│           │   ├── services/
+│           │   │   ├── orderApi.js
+│           │   │   ├── priceService.js
+│           │   │   └── orderState.js
+│           │   └── utils/
+│           │       ├── validators.js
+│           │       └── formatters.js
 │           └── templates/
 │               ├── emptyWatchlist.html
 │               ├── marketDepth.html
