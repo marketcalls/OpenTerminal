@@ -61,13 +61,25 @@ const WatchlistEvents = {
     },
 
     groupTokensByExchange(tokens) {
+        const exchangeTypes = {
+            'NSE': 1,
+            'BSE': 3,
+            'NFO': 2,
+            'BFO': 4,
+            'MCX': 5,
+            'CDS': 13,
+            'NCDEX': 7
+        };
+        
         const exchangeTokens = new Map();
         tokens.forEach(({token, exchType}) => {
-            if (!exchangeTokens.has(exchType)) {
-                exchangeTokens.set(exchType, []);
+            const mappedType = exchangeTypes[exchType] || exchType;
+            if (!exchangeTokens.has(mappedType)) {
+                exchangeTokens.set(mappedType, []);
             }
-            exchangeTokens.get(exchType).push(token);
+            exchangeTokens.get(mappedType).push(token);
         });
+        
         return Array.from(exchangeTokens).map(([exchangeType, tokens]) => ({
             exchangeType,
             tokens

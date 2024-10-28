@@ -17,11 +17,12 @@
             <span class="text-xs text-base-content/70">{{ item.exch_seg }}</span>
         </div>
         <div class="flex items-center gap-4">
+            <!-- templates/components/watchlist/_item.html -->
             <div class="text-right">
                 <div class="font-medium ltp">--</div>
                 <div class="flex items-center gap-1 text-xs">
-                    <span class="change">0.00</span>
-                    <span class="change-percent">(0.00%)</span>
+                    <span class="change {% if settings.show_ltp_change %}visible{% else %}hidden{% endif %}">0.00</span>
+                    <span class="change-percent {% if settings.show_ltp_change_percent %}visible{% else %}hidden{% endif %}">(0.00%)</span>
                 </div>
             </div>
             <!-- Buy/Sell Buttons -->

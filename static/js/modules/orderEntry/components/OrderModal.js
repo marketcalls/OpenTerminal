@@ -193,6 +193,85 @@ const OrderModal = (function() {
         return typeof price === 'number' ? price.toFixed(2) : '--';
     }
 
+    function handleOrderTypeChange(e) {
+        const priceInput = document.querySelector('input[name="price"]');
+        const priceControls = document.querySelector('.price-controls');
+        
+        if (e.target.value === 'MARKET') {
+            priceInput.disabled = true;
+            priceInput.value = '0';
+            priceControls.classList.add('opacity-50');
+        } else {
+            priceInput.disabled = false;
+            priceInput.value = currentSymbol.ltp;
+            priceControls.classList.remove('opacity-50');
+        }
+    }
+
+    // Add event listeners
+    document.querySelectorAll('input[name="ordertype"]').forEach(radio => {
+        radio.addEventListener('change', handleOrderTypeChange);
+    });
+
+    function toggleMarketDepth() {
+        const depthContainer = document.getElementById('order-market-depth');
+        const toggleIcon = document.querySelector('.market-depth-icon');
+        
+        if (depthContainer) {
+            const isHidden = depthContainer.classList.contains('hidden');
+            depthContainer.classList.toggle('hidden', !isHidden);
+            
+            // Rotate icon
+            if (toggleIcon) {
+                toggleIcon.style.transform = isHidden ? 'rotate(180deg)' : '';
+            }
+            
+            // If showing depth, update the data
+            if (!isHidden && currentSymbol) {
+                updateMarketDepth(currentSymbol.token);
+            }
+        }
+    }
+    
+    // Add event listener
+    document.querySelector('.market-depth-toggle')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        toggleMarketDepth();
+    });
+
+    // static/js/modules/orderEntry/components/OrderModal.js
+    function updateProductType(exchange) {
+        const deliveryLabel = document.querySelector('.delivery-type');
+        if (deliveryLabel) {
+            const isEquity = ['NSE', 'BSE'].includes(exchange);
+            const deliveryInput = document.getElementById('delivery');
+            
+            deliveryLabel.textContent = isEquity ? 'DELIVERY' : 'CARRY FORWARD';
+            if (deliveryInput) {
+                deliveryInput.value = isEquity ? 'DELIVERY' : 'CARRYFORWARD';
+            }
+        }
+    }
+
+    function show(symbolData, side = 'BUY') {
+        if (!modal) return;
+
+        currentSymbol = symbolData;
+        orderSide = side;
+
+        // Update symbol info
+        modal.querySelector('.symbol-name').textContent = symbolData.symbol;
+        modal.querySelector('.exchange-name').textContent = symbolData.exchange;
+        
+        // Update product type based on exchange
+        updateProductType(symbolData.exchange);
+
+        // Set initial values
+        setDefaultValues(symbolData);
+
+        modal.showModal();
+    }
+
     return {
         init,
         show,

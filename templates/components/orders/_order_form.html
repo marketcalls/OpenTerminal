@@ -1,4 +1,4 @@
-<!-- templates/orders/_order_form.html -->
+<!-- templates/components/orders/_order_form.html -->
 <form id="order-form" class="space-y-4">
     <input type="hidden" name="symbol" id="form-symbol">
     <input type="hidden" name="token" id="form-token">
@@ -9,13 +9,18 @@
     <div>
         <label class="text-sm font-medium mb-2 block">Product Type</label>
         <div class="join w-full">
-            <input type="radio" name="producttype" 
+            <input type="radio" id="intraday" name="producttype" 
                    value="INTRADAY" 
-                   class="join-item btn btn-sm flex-1" 
+                   class="hidden"
                    checked />
-            <input type="radio" name="producttype" 
-                   value="DELIVERY" 
-                   class="join-item btn btn-sm flex-1 delivery-option" />
+            <label for="intraday" 
+                   class="join-item btn btn-sm flex-1">INTRADAY</label>
+            
+            <input type="radio" id="delivery" name="producttype" 
+                   value="DELIVERY"
+                   class="hidden" />
+            <label for="delivery" 
+                   class="join-item btn btn-sm flex-1 delivery-type">DELIVERY</label>
         </div>
     </div>
 
@@ -28,7 +33,7 @@
             </div>
         </div>
         <div class="join w-full">
-            <button type="button" class="join-item btn btn-sm qty-decrement">-</button>
+            <button type="button" class="join-item btn btn-sm qty-decrement">−</button>
             <input type="number" 
                    name="quantity" 
                    class="join-item input input-bordered input-sm w-full text-center"
@@ -38,21 +43,25 @@
     </div>
 
     <!-- Price -->
-    <div>
+    <div class="price-controls">
         <div class="flex justify-between mb-2">
             <label class="text-sm font-medium">Price</label>
             <div class="join">
-                <input type="radio" name="ordertype" 
-                       value="LIMIT" 
-                       class="join-item btn btn-sm" 
-                       checked />
-                <input type="radio" name="ordertype" 
-                       value="MARKET" 
-                       class="join-item btn btn-sm" />
+                <label class="join-item btn btn-xs">
+                    <input type="radio" name="ordertype" 
+                           value="LIMIT" 
+                           class="hidden"
+                           checked /> LIMIT
+                </label>
+                <label class="join-item btn btn-xs">
+                    <input type="radio" name="ordertype" 
+                           value="MARKET" 
+                           class="hidden" /> MARKET
+                </label>
             </div>
         </div>
         <div class="join w-full">
-            <button type="button" class="join-item btn btn-sm price-decrement">-</button>
+            <button type="button" class="join-item btn btn-sm price-decrement">−</button>
             <input type="number" 
                    name="price" 
                    step="0.05"
@@ -65,7 +74,7 @@
     <div id="stoploss-fields" class="hidden">
         <label class="text-sm font-medium mb-2 block">Trigger Price</label>
         <div class="join w-full">
-            <button type="button" class="join-item btn btn-sm trigger-decrement">-</button>
+            <button type="button" class="join-item btn btn-sm trigger-decrement">−</button>
             <input type="number" 
                    name="triggerprice" 
                    step="0.05"
@@ -76,16 +85,22 @@
 
     <!-- Market Depth Toggle -->
     <button type="button" 
-            class="btn btn-sm btn-ghost w-full flex justify-between items-center"
-            onclick="toggleMarketDepth()">
+            class="market-depth-toggle btn btn-sm btn-ghost w-full flex justify-between items-center">
         <span>Market Depth & Quote</span>
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 market-depth-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        <svg xmlns="http://www.w3.org/2000/svg" 
+             class="h-4 w-4 market-depth-icon transition-transform duration-200" 
+             fill="none" 
+             viewBox="0 0 24 24" 
+             stroke="currentColor">
+            <path stroke-linecap="round" 
+                  stroke-linejoin="round" 
+                  stroke-width="2" 
+                  d="M19 9l-7 7-7-7" />
         </svg>
     </button>
 
     <!-- Market Depth Content -->
-    <div id="order-market-depth" class="hidden">
+    <div id="order-market-depth" class="hidden transition-all duration-200">
         {% include 'components/orders/_market_depth.html' %}
     </div>
 
