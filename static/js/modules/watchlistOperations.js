@@ -402,6 +402,213 @@ const WatchlistOperations = {
         }
     },
 
+        /**
+     * Order Operations - New Additions
+     */
+        async initOrderButtons(watchlistItem) {
+            const symbolInfo = watchlistItem.querySelector('.symbol-info');
+            if (!symbolInfo) return;
+    
+            // Create order buttons container
+            const orderButtons = document.createElement('div');
+            orderButtons.className = 'order-buttons hidden absolute right-0 top-0 h-full flex items-center gap-1 px-2';
+            orderButtons.innerHTML = `
+                <button class="btn btn-xs btn-success buy-btn px-2 py-0.5">B</button>
+                <button class="btn btn-xs btn-error sell-btn px-2 py-0.5">S</button>
+            `;
+    
+            // Add buttons to watchlist item
+            symbolInfo.style.position = 'relative';
+            symbolInfo.appendChild(orderButtons);
+    
+            // Add hover events
+            watchlistItem.addEventListener('mouseenter', () => {
+                orderButtons.classList.remove('hidden');
+            });
+    
+            watchlistItem.addEventListener('mouseleave', () => {
+                orderButtons.classList.add('hidden');
+            });
+        },
+    
+        /**
+         * Market Depth Operations - New Additions
+         */
+        async toggleMarketDepth(watchlistItem) {
+            const token = watchlistItem.dataset.token;
+            const depthContainer = document.getElementById(`depth-${token}`);
+            
+            if (!depthContainer) return;
+    
+            // Close all other depth views
+            document.querySelectorAll('.market-depth-container').forEach(container => {
+                if (container.id !== `depth-${token}`) {
+                    container.classList.add('hidden');
+                }
+            });
+    
+            // Toggle current depth
+            depthContainer.classList.toggle('hidden');
+        },
+    
+        /**
+         * Order Form Preparation
+         */
+        prepareOrderForm(symbolData, side = 'BUY') {
+            const isEquityExchange = ['NSE', 'BSE'].includes(symbolData.exchange);
+            
+            return {
+                symbol: symbolData.symbol,
+                token: symbolData.token,
+                exchange: symbolData.exchange,
+                tradingSymbol: symbolData.tradingSymbol,
+                quantity: symbolData.lotSize || 1,
+                price: symbolData.ltp || 0,
+                orderType: 'LIMIT',
+                productType: isEquityExchange ? 'INTRADAY' : 'CARRYFORWARD',
+                side: side,
+                triggerPrice: 0,
+                lotSize: symbolData.lotSize || 1,
+                tickSize: symbolData.tickSize || 0.05
+            };
+        },
+    
+        /**
+         * Update existing addSymbolToDOM method
+         */
+        async addSymbolToDOM(symbolData, watchlistId) {
+            const watchlistContent = document.getElementById(`watchlist-${watchlistId}`);
+            const symbolList = watchlistContent.querySelector('ul');
+    
+            if (!symbolList.querySelector('.watchlist-item')) {
+                symbolList.innerHTML = '';
+            }
+    
+            const li = document.createElement('li');
+            li.className = 'watchlist-item bg-base-100 rounded-lg overflow-hidden shadow-sm relative group';
+            li.id = `item-${symbolData.token}`;
+            li.setAttribute('data-token', symbolData.token);
+            li.setAttribute('data-exch-type', WatchlistCore.getExchTypeCode(symbolData.exch_seg));
+            li.setAttribute('data-symbol', symbolData.symbol);
+            li.setAttribute('data-exchange', symbolData.exch_seg);
+            li.setAttribute('data-lot-size', symbolData.lotSize || '1');
+            li.setAttribute('data-tick-size', symbolData.tick_size || '0.05');
+            li.setAttribute('data-instrument-type', symbolData.instrumenttype || '');
+    
+            // Add symbol content
+            li.innerHTML = `
+                <div class="flex justify-between items-center p-3 hover:bg-base-200 cursor-pointer">
+                    <div class="symbol-info flex flex-col">
+                        <div class="flex items-center gap-2">
+                            <span class="font-medium">${symbolData.symbol}</span>
+                        </div>
+                        <span class="text-xs text-base-content/70">${symbolData.exch_seg}</span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right">
+                            <div class="font-medium ltp">--</div>
+                            <div class="flex items-center gap-1 text-xs">
+                                <span class="change">0.00</span>
+                                <span class="change-percent">(0.00%)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="depth-${symbolData.token}" class="market-depth-container hidden border-t border-base-200">
+                    <!-- Market depth template will be injected here -->
+                </div>
+            `;
+    
+            symbolList.appendChild(li);
+    
+            // Initialize order buttons and market depth
+            await this.initOrderButtons(li);
+            await this.initMarketDepth(li, symbolData);
+    
+            // Update subscriptions
+            const newSymbolData = {
+                token: symbolData.token,
+                exchType: WatchlistCore.getExchTypeCode(symbolData.exch_seg)
+            };
+    
+            const currentTokens = WatchlistCore.state.activeSubscriptions.get(watchlistId) || [];
+            currentTokens.push(newSymbolData);
+            WatchlistCore.state.activeSubscriptions.set(watchlistId, currentTokens);
+    
+            // Subscribe to market data
+            await WatchlistEvents.subscribeToSymbols([newSymbolData]);
+            window.dispatchEvent(new CustomEvent('symbolAdded', { 
+                detail: {
+                    ...symbolData,
+                    exchType: WatchlistCore.getExchTypeCode(symbolData.exch_seg)
+                }
+            }));
+    
+            // Update scrip count
+            this.updateScripCount(watchlistId, 1);
+        },
+    
+        /**
+         * Market Depth Initialization
+         */
+        async initMarketDepth(watchlistItem, symbolData) {
+            const depthContainer = watchlistItem.querySelector('.market-depth-container');
+            if (!depthContainer) return;
+    
+            depthContainer.innerHTML = `
+                <div class="p-3 space-y-2">
+                    <!-- Market Stats -->
+                    <div class="grid grid-cols-4 gap-2 text-xs border-b border-base-200 pb-2">
+                        <div>O: <span class="open">--</span></div>
+                        <div>H: <span class="high">--</span></div>
+                        <div>L: <span class="low">--</span></div>
+                        <div>C: <span class="close">--</span></div>
+                    </div>
+    
+                    <!-- Depth Table -->
+                    <table class="w-full text-xs">
+                        <thead class="text-base-content/70">
+                            <tr>
+                                <th class="py-1 text-right">Qty</th>
+                                <th class="py-1 text-right">Orders</th>
+                                <th class="py-1 text-right text-green-500">Bid</th>
+                                <th class="py-1 text-right text-red-500">Ask</th>
+                                <th class="py-1 text-right">Orders</th>
+                                <th class="py-1 text-right">Qty</th>
+                            </tr>
+                        </thead>
+                        <tbody class="depth-data">
+                            <!-- Depth data will be injected here -->
+                        </tbody>
+                    </table>
+    
+                    <!-- Volume Info -->
+                    <div class="flex justify-between text-xs text-base-content/70 pt-2 border-t border-base-200">
+                        <div>Vol: <span class="volume">--</span></div>
+                        <div>
+                            Buy: <span class="total-buy-qty">--</span> | 
+                            Sell: <span class="total-sell-qty">--</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        },
+    
+        /**
+         * Utility Methods
+         */
+        updateScripCount(watchlistId, change) {
+            const watchlistRow = document.getElementById(`watchlist-row-${watchlistId}`);
+            if (watchlistRow) {
+                const scripCount = watchlistRow.querySelector('.text-xs.text-base-content\\/70');
+                if (scripCount) {
+                    const currentCount = parseInt(scripCount.textContent) || 0;
+                    scripCount.textContent = `${Math.max(0, currentCount + change)} Scrips`;
+                }
+            }
+        },
+    
+
     updateDisplaySettings(settings) {
         document.querySelectorAll('.ltp-change').forEach(el => 
             el.classList.toggle('hidden', !settings.show_ltp_change));

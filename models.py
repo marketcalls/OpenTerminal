@@ -77,3 +77,38 @@ class Instrument(db.Model):
 
     def __repr__(self):
         return f'<Instrument {self.symbol}>'
+    
+
+    # Add new model for Order Logs
+class OrderLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    order_id = db.Column(db.String(100), nullable=False)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    symbol = db.Column(db.String(50), nullable=False)
+    exchange = db.Column(db.String(10), nullable=False)
+    order_type = db.Column(db.String(20), nullable=False)
+    transaction_type = db.Column(db.String(10), nullable=False)
+    product_type = db.Column(db.String(20), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    price = db.Column(db.Float, nullable=True)
+    trigger_price = db.Column(db.Float, nullable=True)
+    status = db.Column(db.String(20), nullable=False)
+    message = db.Column(db.String(255), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'timestamp': self.timestamp.isoformat(),
+            'symbol': self.symbol,
+            'exchange': self.exchange,
+            'order_type': self.order_type,
+            'transaction_type': self.transaction_type,
+            'product_type': self.product_type,
+            'quantity': self.quantity,
+            'price': self.price,
+            'trigger_price': self.trigger_price,
+            'status': self.status,
+            'message': self.message
+        }

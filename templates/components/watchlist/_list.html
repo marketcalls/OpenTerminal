@@ -1,0 +1,12 @@
+<!-- templates/watchlist/_list.html -->
+<div class="space-y-2">
+    {% if watchlist.items_list and watchlist.items_list|length > 0 %}
+        {% for item in watchlist.items_list %}
+            {% include 'watchlist/_item.html' %}
+        {% endfor %}
+    {% else %}
+        <div class="text-center text-base-content/70 py-4">
+            No items in this watchlist
+        </div>
+    {% endif %}
+</div>

@@ -5,7 +5,7 @@ import http.client
 import json
 
 # Define the blueprint for order-related routes
-orders_bp = Blueprint('orders', __name__)
+books_bp = Blueprint('books', __name__)
 
 # Helper function to retrieve the auth token
 def get_auth_token(user):
@@ -16,7 +16,7 @@ def get_auth_token(user):
     return auth_token
 
 # Route to display order book
-@orders_bp.route('/orderbook')
+@books_bp.route('/orderbook')
 def orderbook():
     client_id = session.get('client_id')
     if not client_id:
@@ -67,7 +67,7 @@ def orderbook():
     return redirect(url_for('dashboard.dashboard'))
 
 # Route to display trade book
-@orders_bp.route('/tradebook')
+@books_bp.route('/tradebook')
 def tradebook():
     client_id = session.get('client_id')
     if not client_id:
@@ -118,7 +118,7 @@ def tradebook():
     return redirect(url_for('dashboard.dashboard'))
 
 # Route to display positions
-@orders_bp.route('/positions')
+@books_bp.route('/positions')
 def positions():
     client_id = session.get('client_id')
     if not client_id:
@@ -169,7 +169,7 @@ def positions():
     return redirect(url_for('dashboard.dashboard'))
 
 # Route to display holdings
-@orders_bp.route('/holdings')
+@books_bp.route('/holdings')
 def holdings():
     client_id = session.get('client_id')
     if not client_id:

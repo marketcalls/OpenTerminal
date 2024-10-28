@@ -1,0 +1,96 @@
+<!-- templates/orders/_order_form.html -->
+<form id="order-form" class="space-y-4">
+    <input type="hidden" name="symbol" id="form-symbol">
+    <input type="hidden" name="token" id="form-token">
+    <input type="hidden" name="exchange" id="form-exchange">
+    <input type="hidden" name="variety" value="NORMAL">
+    
+    <!-- Product Type -->
+    <div>
+        <label class="text-sm font-medium mb-2 block">Product Type</label>
+        <div class="join w-full">
+            <input type="radio" name="producttype" 
+                   value="INTRADAY" 
+                   class="join-item btn btn-sm flex-1" 
+                   checked />
+            <input type="radio" name="producttype" 
+                   value="DELIVERY" 
+                   class="join-item btn btn-sm flex-1 delivery-option" />
+        </div>
+    </div>
+
+    <!-- Quantity -->
+    <div>
+        <div class="flex justify-between mb-2">
+            <label class="text-sm font-medium quantity-label">Quantity</label>
+            <div class="text-xs text-base-content/70 total-quantity hidden">
+                Total Qty: <span id="total-qty">0</span>
+            </div>
+        </div>
+        <div class="join w-full">
+            <button type="button" class="join-item btn btn-sm qty-decrement">-</button>
+            <input type="number" 
+                   name="quantity" 
+                   class="join-item input input-bordered input-sm w-full text-center"
+                   value="1" />
+            <button type="button" class="join-item btn btn-sm qty-increment">+</button>
+        </div>
+    </div>
+
+    <!-- Price -->
+    <div>
+        <div class="flex justify-between mb-2">
+            <label class="text-sm font-medium">Price</label>
+            <div class="join">
+                <input type="radio" name="ordertype" 
+                       value="LIMIT" 
+                       class="join-item btn btn-sm" 
+                       checked />
+                <input type="radio" name="ordertype" 
+                       value="MARKET" 
+                       class="join-item btn btn-sm" />
+            </div>
+        </div>
+        <div class="join w-full">
+            <button type="button" class="join-item btn btn-sm price-decrement">-</button>
+            <input type="number" 
+                   name="price" 
+                   step="0.05"
+                   class="join-item input input-bordered input-sm w-full text-center" />
+            <button type="button" class="join-item btn btn-sm price-increment">+</button>
+        </div>
+    </div>
+
+    <!-- Stop Loss Fields (Initially Hidden) -->
+    <div id="stoploss-fields" class="hidden">
+        <label class="text-sm font-medium mb-2 block">Trigger Price</label>
+        <div class="join w-full">
+            <button type="button" class="join-item btn btn-sm trigger-decrement">-</button>
+            <input type="number" 
+                   name="triggerprice" 
+                   step="0.05"
+                   class="join-item input input-bordered input-sm w-full text-center" />
+            <button type="button" class="join-item btn btn-sm trigger-increment">+</button>
+        </div>
+    </div>
+
+    <!-- Market Depth Toggle -->
+    <button type="button" 
+            class="btn btn-sm btn-ghost w-full flex justify-between items-center"
+            onclick="toggleMarketDepth()">
+        <span>Market Depth & Quote</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 market-depth-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+    </button>
+
+    <!-- Market Depth Content -->
+    <div id="order-market-depth" class="hidden">
+        {% include 'components/orders/_market_depth.html' %}
+    </div>
+
+    <!-- Place Order Button -->
+    <button type="submit" class="btn btn-block place-order-btn">
+        Place Order
+    </button>
+</form>

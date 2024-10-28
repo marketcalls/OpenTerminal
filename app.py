@@ -1,6 +1,7 @@
 from flask import Flask
 from extensions import db
-from routes import auth_bp, home_bp, funds_bp, orders_bp
+from routes import auth_bp, home_bp, funds_bp, books_bp
+from routes.orders import orders_bp
 from routes.dashboard import dashboard_bp
 from apscheduler.schedulers.background import BackgroundScheduler
 from master_contract import download_and_store_json
@@ -21,6 +22,7 @@ def create_app():
     app.register_blueprint(dashboard_bp)  # This now uses the modularized dashboard
     app.register_blueprint(home_bp)
     app.register_blueprint(funds_bp)
+    app.register_blueprint(books_bp)
     app.register_blueprint(orders_bp)
 
     return app

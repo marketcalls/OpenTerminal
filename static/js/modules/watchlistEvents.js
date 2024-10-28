@@ -1,5 +1,3 @@
-// static/js/modules/watchlistEvents.js
-
 const WatchlistEvents = {
     /**
      * WebSocket Subscription Management
@@ -84,11 +82,18 @@ const WatchlistEvents = {
         this.bindSymbolControls();
         this.bindTabControls();
         this.bindSettingsControls();
+        this.bindOrderControls();  // New addition
+        this.bindMarketDepthControls();  // New addition
     },
 
+    /**
+     * Watchlist Controls
+     */
     bindWatchlistControls() {
         ['create-watchlist-btn', 'create-new-watchlist-btn'].forEach(id => {
-            document.getElementById(id)?.addEventListener('click', () => WatchlistOperations.createWatchlist());
+            document.getElementById(id)?.addEventListener('click', () => {
+                WatchlistOperations.createWatchlist();
+            });
         });
 
         document.getElementById('manage-watchlist-btn')?.addEventListener('click', () => {
@@ -96,34 +101,149 @@ const WatchlistEvents = {
             WatchlistOperations.loadWatchlistSettings();
         });
 
-        document.querySelectorAll('.edit-watchlist-btn').forEach(btn =>
-            btn.addEventListener('click', (e) => WatchlistOperations.editWatchlistName(e)));
-        
-        document.querySelectorAll('.delete-watchlist-btn').forEach(btn =>
-            btn.addEventListener('click', (e) => WatchlistOperations.deleteWatchlist(e)));
+        document.querySelectorAll('.edit-watchlist-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => WatchlistOperations.editWatchlistName(e));
+        });
+
+        document.querySelectorAll('.delete-watchlist-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => WatchlistOperations.deleteWatchlist(e));
+        });
     },
 
+    /**
+     * Symbol Controls
+     */
     bindSymbolControls() {
-        document.querySelectorAll('.remove-item-btn').forEach(btn =>
+        document.querySelectorAll('.remove-item-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 await WatchlistOperations.removeSymbol(e);
-            }));
+            });
+        });
+
+        // Add hover effect for showing order buttons
+        document.querySelectorAll('.watchlist-item').forEach(item => {
+            item.addEventListener('mouseenter', function() {
+                this.querySelector('.order-buttons')?.classList.remove('hidden');
+            });
+            
+            item.addEventListener('mouseleave', function() {
+                this.querySelector('.order-buttons')?.classList.add('hidden');
+            });
+        });
     },
 
+    /**
+     * Tab Controls
+     */
     bindTabControls() {
-        document.querySelectorAll('.tab-btn').forEach(tab =>
+        document.querySelectorAll('.tab-btn').forEach(tab => {
             tab.addEventListener('click', async (e) => {
                 const watchlistId = e.target.dataset.watchlistId;
                 await WatchlistOperations.switchTab(e.target);
                 await this.handleTabActivation(watchlistId);
-            }));
+            });
+        });
     },
 
+    /**
+     * Settings Controls
+     */
     bindSettingsControls() {
         ['show-ltp-change', 'show-ltp-change-percent', 'show-holdings'].forEach(id => {
-            document.getElementById(id)?.addEventListener('change', () => WatchlistOperations.updateSettings());
+            document.getElementById(id)?.addEventListener('change', () => {
+                WatchlistOperations.updateSettings();
+            });
         });
+    },
+
+    /**
+     * Order Controls - New Addition
+     */
+    bindOrderControls() {
+        // Buy button clicks
+        document.querySelectorAll('.buy-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const item = e.target.closest('.watchlist-item');
+                if (item) {
+                    const symbolData = this.getSymbolData(item);
+                    OrderModal.show(symbolData, 'BUY');
+                }
+            });
+        });
+
+        // Sell button clicks
+        document.querySelectorAll('.sell-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const item = e.target.closest('.watchlist-item');
+                if (item) {
+                    const symbolData = this.getSymbolData(item);
+                    OrderModal.show(symbolData, 'SELL');
+                }
+            });
+        });
+    },
+
+    /**
+     * Market Depth Controls - New Addition
+     */
+    bindMarketDepthControls() {
+        // Market depth toggle
+        document.querySelectorAll('.symbol-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                if (!e.target.closest('.order-buttons') && !e.target.closest('.remove-item-btn')) {
+                    const item = header.closest('.watchlist-item');
+                    if (item) {
+                        const token = item.dataset.token;
+                        toggleDepth(token);
+                    }
+                }
+            });
+        });
+
+        // Market depth price clicks
+        document.querySelectorAll('.depth-price').forEach(price => {
+            price.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const priceValue = parseFloat(e.target.textContent);
+                if (!isNaN(priceValue)) {
+                    const item = e.target.closest('.watchlist-item');
+                    if (item) {
+                        const symbolData = this.getSymbolData(item);
+                        const isBuyPrice = e.target.classList.contains('bid-price');
+                        OrderModal.show(symbolData, isBuyPrice ? 'BUY' : 'SELL', priceValue);
+                    }
+                }
+            });
+        });
+    },
+
+    /**
+     * Helper Methods - New Addition
+     */
+    getSymbolData(item) {
+        return {
+            symbol: item.dataset.symbol,
+            token: item.dataset.token,
+            exchange: item.dataset.exchSeg,
+            lotSize: parseInt(item.dataset.lotSize) || 1,
+            tickSize: parseFloat(item.dataset.tickSize) || 0.05,
+            instrumentType: item.dataset.instrumentType,
+            ltp: parseFloat(item.querySelector('.ltp')?.textContent) || 0
+        };
+    },
+
+    /**
+     * Error Handling
+     */
+    handleError(error, context) {
+        console.error(`Error in ${context}:`, error);
+        // You can add more error handling logic here, like showing a toast notification
+        if (typeof showToast === 'function') {
+            showToast('error', `Error: ${error.message || 'Something went wrong'}`);
+        }
     }
 };
 

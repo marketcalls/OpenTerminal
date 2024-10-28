@@ -1,0 +1,38 @@
+<!-- templates/watchlist/_market_depth.html -->
+<div id="depth-{{ item.token }}" class="market-depth hidden border-t border-base-200">
+    <div class="p-3 space-y-2">
+        <!-- Market Stats -->
+        <div class="grid grid-cols-4 gap-2 text-xs border-b border-base-200 pb-2">
+            <div>O: <span class="open">--</span></div>
+            <div>H: <span class="high">--</span></div>
+            <div>L: <span class="low">--</span></div>
+            <div>C: <span class="close">--</span></div>
+        </div>
+
+        <!-- Depth Table -->
+        <table class="w-full text-xs">
+            <thead class="text-base-content/70">
+                <tr>
+                    <th class="py-1 text-right">Qty</th>
+                    <th class="py-1 text-right">Orders</th>
+                    <th class="py-1 text-right text-green-500">Bid</th>
+                    <th class="py-1 text-right text-red-500">Ask</th>
+                    <th class="py-1 text-right">Orders</th>
+                    <th class="py-1 text-right">Qty</th>
+                </tr>
+            </thead>
+            <tbody class="depth-data">
+                <!-- Depth data will be injected here -->
+            </tbody>
+        </table>
+
+        <!-- Volume Info -->
+        <div class="flex justify-between text-xs text-base-content/70 pt-2 border-t border-base-200">
+            <div>Vol: <span class="volume">--</span></div>
+            <div>
+                Buy: <span class="total-buy-qty">--</span> | 
+                Sell: <span class="total-sell-qty">--</span>
+            </div>
+        </div>
+    </div>
+</div>
