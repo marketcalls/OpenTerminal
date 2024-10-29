@@ -92,13 +92,45 @@ const MarketDataUpdater = {
     },
 
     updateMarketDepth(item, data) {
-
+        // First update the OHLC values
+        const formatPrice = (price) => price === '--' ? '--' : parseFloat(price).toFixed(2);
         
+        // Update OHLC values
+        const ohlcValues = {
+            'open': data.openPrice,
+            'high': data.highPrice,
+            'low': data.lowPrice,
+            'close': data.closePrice
+        };
+
+        Object.entries(ohlcValues).forEach(([key, value]) => {
+            const element = item.querySelector(`.${key}`);
+            if (element) {
+                element.textContent = formatPrice(value);
+            }
+        });
+
+        // Update Volume and Total Buy/Sell quantities
+        const volumeElement = item.querySelector('.volume');
+        if (volumeElement) {
+            volumeElement.textContent = this.formatVolume(data.volTraded);
+        }
+
+        const totalBuyElement = item.querySelector('.total-buy-qty');
+        if (totalBuyElement) {
+            totalBuyElement.textContent = this.formatNumber(data.totalBuyQty);
+        }
+
+        const totalSellElement = item.querySelector('.total-sell-qty');
+        if (totalSellElement) {
+            totalSellElement.textContent = this.formatNumber(data.totalSellQty);
+        }
+
+        // Update market depth data
         const depthElement = item.querySelector('.depth-data');
         if (!depthElement || !data.bestBids || !data.bestAsks) return;
 
         let html = '';
-        
         // Create arrays of exactly 5 elements each, padding with empty values if needed
         const bids = [...data.bestBids, ...Array(5)].slice(0, 5);
         const asks = [...data.bestAsks, ...Array(5)].slice(0, 5);
@@ -112,9 +144,9 @@ const MarketDataUpdater = {
                     <td class="text-right py-0.5 bid-qty">${this.formatNumber(bid.qty)}</td>
                     <td class="text-right py-0.5 bid-orders">${bid.numOrders}</td>
                     <td class="text-right py-0.5 text-green-500 font-medium cursor-pointer hover:opacity-80 bid-price" 
-                        data-price="${bid.price !== '--' ? bid.price : ''}">${this.formatPrice(bid.price)}</td>
+                        data-price="${bid.price !== '--' ? bid.price : ''}">${formatPrice(bid.price)}</td>
                     <td class="text-right py-0.5 text-red-500 font-medium cursor-pointer hover:opacity-80 ask-price"
-                        data-price="${ask.price !== '--' ? ask.price : ''}">${this.formatPrice(ask.price)}</td>
+                        data-price="${ask.price !== '--' ? ask.price : ''}">${formatPrice(ask.price)}</td>
                     <td class="text-right py-0.5 ask-orders">${ask.numOrders}</td>
                     <td class="text-right py-0.5 ask-qty">${this.formatNumber(ask.qty)}</td>
                 </tr>
@@ -131,7 +163,7 @@ const MarketDataUpdater = {
                 if (price) {
                     const orderSide = e.target.classList.contains('bid-price') ? 'SELL' : 'BUY';
                     const symbolData = this.getSymbolDataFromElement(item);
-                    OrderModal.show(symbolData, orderSide, parseFloat(price));
+                    window.OrderModal.show(symbolData, orderSide, parseFloat(price));
                 }
             };
         });
@@ -139,33 +171,44 @@ const MarketDataUpdater = {
 
 
     updateOrderModal(data) {
+        const modal = document.getElementById('order-modal');
+        if (!modal) return;
+
         // Update current price
-        const priceElement = document.querySelector('.current-price');
+        const priceElement = modal.querySelector('.current-price');
         if (priceElement) {
             priceElement.textContent = this.formatPrice(data.lastTradedPrice);
         }
 
-        // Update change info
-        const change = data.lastTradedPrice - data.closePrice;
-        const changePercent = (change / data.closePrice) * 100;
-        const changeElement = document.querySelector('.price-change');
-        if (changeElement) {
-            const changeClass = change >= 0 ? 'text-green-500' : 'text-red-500';
-            changeElement.textContent = `${this.formatPrice(change)} (${changePercent.toFixed(2)}%)`;
-            changeElement.className = `text-sm ${changeClass}`;
+        // Update OHLC values
+        const ohlcFields = ['open', 'high', 'low', 'close'];
+        ohlcFields.forEach(field => {
+            const element = modal.querySelector(`.ohlc-${field}`);
+            if (element) {
+                element.textContent = this.formatPrice(data[`${field}Price`]);
+            }
+        });
+
+        // Update volume and total quantities
+        const volumeElement = modal.querySelector('.depth-volume');
+        if (volumeElement) {
+            volumeElement.textContent = this.formatVolume(data.volTraded);
+        }
+
+        const totalBuyElement = modal.querySelector('.total-buy');
+        if (totalBuyElement) {
+            totalBuyElement.textContent = this.formatNumber(data.totalBuyQty);
+        }
+
+        const totalSellElement = modal.querySelector('.total-sell');
+        if (totalSellElement) {
+            totalSellElement.textContent = this.formatNumber(data.totalSellQty);
         }
 
         // Update market depth if visible
-        const depthElement = document.querySelector('#order-market-depth .depth-data');
-        if (depthElement && !depthElement.closest('.hidden')) {
-            this.updateMarketDepth({ querySelector: () => depthElement }, data);
-        }
-
-        // Update default price if it's a limit order
-        const priceInput = document.querySelector('input[name="price"]');
-        const orderType = document.querySelector('input[name="ordertype"]:checked')?.value;
-        if (priceInput && orderType === 'LIMIT' && !priceInput.disabled) {
-            priceInput.value = this.formatPrice(data.lastTradedPrice);
+        const depthContainer = modal.querySelector('#order-market-depth:not(.hidden)');
+        if (depthContainer) {
+            this.updateMarketDepth({ querySelector: (s) => depthContainer.querySelector(s) }, data);
         }
     },
 
