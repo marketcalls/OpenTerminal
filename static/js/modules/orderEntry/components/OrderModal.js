@@ -90,6 +90,39 @@ const OrderModal = (function() {
         }
     }
 
+    // Add these validation functions after setupPriceControls
+
+    function validateQuantity(e) {
+        const input = e.target;
+        const value = parseInt(input.value);
+        const minQty = parseInt(input.getAttribute('min')) || 1;
+        const step = parseInt(input.getAttribute('step')) || 1;
+
+        if (isNaN(value) || value < minQty) {
+            input.value = minQty;
+        } else {
+            // Round to nearest step
+            input.value = Math.round(value / step) * step;
+        }
+        updateTotalQuantity(input.value);
+    }
+
+    function validatePrice(e) {
+        const input = e.target;
+        if (input.disabled) return;
+
+        const value = parseFloat(input.value);
+        const step = parseFloat(input.getAttribute('step')) || 0.05;
+
+        if (isNaN(value) || value <= 0) {
+            input.value = formatPrice(currentSymbol?.ltp || 0);
+        } else {
+            // Round to nearest step
+            input.value = (Math.round(value / step) * step).toFixed(2);
+        }
+    }
+
+
     function show(symbolData, side = 'BUY', price = null) {
         if (!modal) return;
 
@@ -302,6 +335,18 @@ const OrderModal = (function() {
 
     // Add these new methods
     function updateMarketDepth(data) {
+
+        // Update OHLC values
+        modal.querySelector('.ohlc-open').textContent = formatPrice(data.openPrice);
+        modal.querySelector('.ohlc-high').textContent = formatPrice(data.highPrice);
+        modal.querySelector('.ohlc-low').textContent = formatPrice(data.lowPrice);
+        modal.querySelector('.ohlc-close').textContent = formatPrice(data.closePrice);
+
+        // Update volume and total quantities
+        modal.querySelector('.depth-volume').textContent = formatVolume(data.volTraded);
+        modal.querySelector('.total-buy').textContent = formatNumber(data.totalBuyQty);
+        modal.querySelector('.total-sell').textContent = formatNumber(data.totalSellQty);
+
         const depthContainer = modal.querySelector('#order-market-depth .depth-data');
         if (!depthContainer || !data.bestBids || !data.bestAsks) return;
 
@@ -332,6 +377,20 @@ const OrderModal = (function() {
         depthContainer.innerHTML = html;
     }
 
+    // Add this helper function for volume formatting
+    function formatVolume(volume) {
+        if (!volume || isNaN(volume)) return '--';
+        
+        if (volume >= 10000000) {
+            return (volume / 10000000).toFixed(2) + ' Cr';
+        } else if (volume >= 100000) {
+            return (volume / 100000).toFixed(2) + ' L';
+        } else if (volume >= 1000) {
+            return (volume / 1000).toFixed(2) + ' K';
+        }
+        return volume.toString();
+    }
+
     function setPrice(price) {
         if (!modal || !price || isNaN(price)) return;
         
@@ -354,18 +413,29 @@ const OrderModal = (function() {
     function toggleMarketDepth() {
         const depthContainer = modal.querySelector('#order-market-depth');
         const toggleIcon = modal.querySelector('.market-depth-icon');
+        const toggleButton = modal.querySelector('.market-depth-toggle');
         
         if (depthContainer) {
             const isHidden = depthContainer.classList.contains('hidden');
+            
+            // Toggle the depth container visibility
             depthContainer.classList.toggle('hidden');
             
+            // Update the toggle button icon/state
             if (toggleIcon) {
                 toggleIcon.style.transform = isHidden ? 'rotate(180deg)' : '';
             }
+            if (toggleButton) {
+                toggleButton.setAttribute('aria-expanded', !isHidden);
+            }
     
-            // Update depth data when showing
+            // If showing depth, ensure we have the latest data
             if (!isHidden && currentSymbol) {
-                updateMarketDepth(currentSymbol.token);
+                // Trigger market depth update
+                const marketData = window.MarketDataUpdater?.previousValues.get(currentSymbol.token);
+                if (marketData) {
+                    updateMarketDepth(marketData);
+                }
             }
         }
     }

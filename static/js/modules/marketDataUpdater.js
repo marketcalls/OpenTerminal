@@ -18,7 +18,7 @@ const MarketDataUpdater = {
             if (data) {
                 this.updatePriceInfo(item, data);
             }
-        });
+        }); 
     },
 
     updateData(decodedData) {
@@ -92,6 +92,8 @@ const MarketDataUpdater = {
     },
 
     updateMarketDepth(item, data) {
+
+        
         const depthElement = item.querySelector('.depth-data');
         if (!depthElement || !data.bestBids || !data.bestAsks) return;
 
