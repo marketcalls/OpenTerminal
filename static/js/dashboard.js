@@ -227,6 +227,28 @@ document.addEventListener('DOMContentLoaded', function() {
         }));
     }
 
+    function toggleDepth(token) {
+        const depthElement = document.getElementById(`depth-${token}`);
+        if (!depthElement) return;
+    
+        // Close all other depth views first
+        document.querySelectorAll('.market-depth').forEach(depth => {
+            if (depth.id !== `depth-${token}`) {
+                depth.classList.add('hidden');
+            }
+        });
+    
+        // Toggle current depth with animation
+        depthElement.classList.toggle('hidden');
+        if (!depthElement.classList.contains('hidden')) {
+            depthElement.classList.add('animate-expand');
+            // Remove animation class after animation completes
+            setTimeout(() => {
+                depthElement.classList.remove('animate-expand');
+            }, 200);
+        }
+    }
+
     // Event listeners for subscription management
     window.addEventListener('websocketSubscribe', function(event) {
         console.log('Received subscribe event:', event.detail);

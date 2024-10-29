@@ -162,6 +162,12 @@ const OrderModal = (function() {
 
         // Set default values
         setDefaultValues();
+
+        // Add this block at the end of updateModalContent function
+        const depthContainer = modal.querySelector('#order-market-depth');
+        if (depthContainer && !depthContainer.classList.contains('hidden')) {
+        updateMarketDepth(currentSymbol.token);
+        }
     }
 
     function updateProductType(exchange) {
@@ -294,6 +300,57 @@ const OrderModal = (function() {
         }
     }
 
+    // Add these new methods
+    function updateMarketDepth(data) {
+        const depthContainer = modal.querySelector('#order-market-depth .depth-data');
+        if (!depthContainer || !data.bestBids || !data.bestAsks) return;
+
+        let html = '';
+        const bids = [...data.bestBids, ...Array(5)].slice(0, 5);
+        const asks = [...data.bestAsks, ...Array(5)].slice(0, 5);
+
+        for (let i = 0; i < 5; i++) {
+            const bid = bids[i] || { qty: '--', numOrders: '--', price: '--' };
+            const ask = asks[i] || { qty: '--', numOrders: '--', price: '--' };
+
+            html += `
+                <tr>
+                    <td class="text-right py-0.5">${formatNumber(bid.qty)}</td>
+                    <td class="text-right py-0.5">${bid.numOrders}</td>
+                    <td class="text-right py-0.5 text-green-500 font-medium cursor-pointer hover:opacity-80"
+                        data-price="${bid.price !== '--' ? bid.price : ''}"
+                        onclick="OrderModal.setPrice(${bid.price})">${formatPrice(bid.price)}</td>
+                    <td class="text-right py-0.5 text-red-500 font-medium cursor-pointer hover:opacity-80"
+                        data-price="${ask.price !== '--' ? ask.price : ''}"
+                        onclick="OrderModal.setPrice(${ask.price})">${formatPrice(ask.price)}</td>
+                    <td class="text-right py-0.5">${ask.numOrders}</td>
+                    <td class="text-right py-0.5">${formatNumber(ask.qty)}</td>
+                </tr>
+            `;
+        }
+
+        depthContainer.innerHTML = html;
+    }
+
+    function setPrice(price) {
+        if (!modal || !price || isNaN(price)) return;
+        
+        const priceInput = modal.querySelector('input[name="price"]');
+        const orderTypeLimit = modal.querySelector('input[value="LIMIT"]');
+        
+        if (priceInput && orderTypeLimit) {
+            orderTypeLimit.checked = true;
+            priceInput.disabled = false;
+            priceInput.value = price.toFixed(2);
+            handleOrderTypeChange({ target: orderTypeLimit });
+        }
+    }
+
+    function formatNumber(num) {
+        if (num === '--' || typeof num !== 'number') return '--';
+        return num.toLocaleString('en-IN');
+    }
+
     function toggleMarketDepth() {
         const depthContainer = modal.querySelector('#order-market-depth');
         const toggleIcon = modal.querySelector('.market-depth-icon');
@@ -304,6 +361,11 @@ const OrderModal = (function() {
             
             if (toggleIcon) {
                 toggleIcon.style.transform = isHidden ? 'rotate(180deg)' : '';
+            }
+    
+            // Update depth data when showing
+            if (!isHidden && currentSymbol) {
+                updateMarketDepth(currentSymbol.token);
             }
         }
     }
@@ -361,7 +423,9 @@ const OrderModal = (function() {
         init,
         show,
         hide,
-        setSide
+        setSide,
+        setPrice,  // Add this
+        updateMarketDepth  // Add this
     };
 })();
 

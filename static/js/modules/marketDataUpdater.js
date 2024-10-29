@@ -96,26 +96,45 @@ const MarketDataUpdater = {
         if (!depthElement || !data.bestBids || !data.bestAsks) return;
 
         let html = '';
-        const maxRows = Math.max(data.bestBids.length, data.bestAsks.length, 5);
+        
+        // Create arrays of exactly 5 elements each, padding with empty values if needed
+        const bids = [...data.bestBids, ...Array(5)].slice(0, 5);
+        const asks = [...data.bestAsks, ...Array(5)].slice(0, 5);
 
-        for (let i = 0; i < maxRows; i++) {
-            const bid = data.bestBids[i] || { quantity: '--', orders: '--', price: '--' };
-            const ask = data.bestAsks[i] || { quantity: '--', orders: '--', price: '--' };
+        for (let i = 0; i < 5; i++) {
+            const bid = bids[i] || { qty: '--', numOrders: '--', price: '--' };
+            const ask = asks[i] || { qty: '--', numOrders: '--', price: '--' };
 
             html += `
                 <tr>
-                    <td class="p-2 text-right">${this.formatNumber(bid.quantity)}</td>
-                    <td class="p-2 text-right">${bid.orders}</td>
-                    <td class="p-2 text-right text-green-500 font-medium cursor-pointer hover:opacity-80">${this.formatPrice(bid.price)}</td>
-                    <td class="p-2 text-right text-red-500 font-medium cursor-pointer hover:opacity-80">${this.formatPrice(ask.price)}</td>
-                    <td class="p-2 text-right">${ask.orders}</td>
-                    <td class="p-2 text-right">${this.formatNumber(ask.quantity)}</td>
+                    <td class="text-right py-0.5 bid-qty">${this.formatNumber(bid.qty)}</td>
+                    <td class="text-right py-0.5 bid-orders">${bid.numOrders}</td>
+                    <td class="text-right py-0.5 text-green-500 font-medium cursor-pointer hover:opacity-80 bid-price" 
+                        data-price="${bid.price !== '--' ? bid.price : ''}">${this.formatPrice(bid.price)}</td>
+                    <td class="text-right py-0.5 text-red-500 font-medium cursor-pointer hover:opacity-80 ask-price"
+                        data-price="${ask.price !== '--' ? ask.price : ''}">${this.formatPrice(ask.price)}</td>
+                    <td class="text-right py-0.5 ask-orders">${ask.numOrders}</td>
+                    <td class="text-right py-0.5 ask-qty">${this.formatNumber(ask.qty)}</td>
                 </tr>
             `;
         }
 
         depthElement.innerHTML = html;
+
+        // Add click handlers for bid/ask prices
+        depthElement.querySelectorAll('.bid-price, .ask-price').forEach(priceElement => {
+            priceElement.onclick = (e) => {
+                e.stopPropagation();
+                const price = e.target.dataset.price;
+                if (price) {
+                    const orderSide = e.target.classList.contains('bid-price') ? 'SELL' : 'BUY';
+                    const symbolData = this.getSymbolDataFromElement(item);
+                    OrderModal.show(symbolData, orderSide, parseFloat(price));
+                }
+            };
+        });
     },
+
 
     updateOrderModal(data) {
         // Update current price
@@ -155,6 +174,18 @@ const MarketDataUpdater = {
         }
     },
 
+    getSymbolDataFromElement(element) {
+        return {
+            symbol: element.dataset.symbol,
+            token: element.dataset.token,
+            exchange: element.dataset.exchSeg,
+            lotSize: parseInt(element.dataset.lotSize) || 1,
+            tickSize: parseFloat(element.dataset.tickSize) || 0.05,
+            instrumentType: element.dataset.instrumentType,
+            ltp: parseFloat(element.querySelector('.ltp')?.textContent) || 0
+        };
+    },
+
     formatValue(value, type) {
         switch (type) {
             case 'volume':
@@ -180,14 +211,13 @@ const MarketDataUpdater = {
         return volume.toString();
     },
 
-    formatNumber(num) {
-        if (typeof num !== 'number' || isNaN(num)) return '--';
-        return num.toLocaleString('en-IN');
+    formatPrice(price) {
+        return price === '--' ? '--' : parseFloat(price).toFixed(2);
     },
 
-    formatPrice(price) {
-        if (typeof price !== 'number' || isNaN(price)) return '--';
-        return price.toFixed(2);
+    formatNumber(num) {
+        if (num === '--' || typeof num !== 'number') return '--';
+        return num.toLocaleString('en-IN');
     },
 
     getPriceChangeClass(currentPrice, previousPrice) {
