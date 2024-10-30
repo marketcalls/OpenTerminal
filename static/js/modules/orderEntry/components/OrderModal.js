@@ -5,6 +5,7 @@ const OrderModal = (function() {
     let currentSymbol = null;
     let orderSide = null;
     let callbacks = {};
+    let currentOrderType = 'regular';
 
     function init(options = {}) {
         modal = document.getElementById('order-modal');
@@ -17,6 +18,7 @@ const OrderModal = (function() {
 
         setupEventListeners();
         initializeButtonStates();
+        console.log('OrderModal initialized');
     }
 
     function setupEventListeners() {
@@ -32,7 +34,7 @@ const OrderModal = (function() {
         const tabs = modal.querySelectorAll('.order-tab');
         tabs.forEach(function(tab) {
             tab.addEventListener('click', function() {
-                switchTab(tab.dataset.type);
+                handleTabSwitch(this.dataset.type);
             });
         });
 
@@ -75,6 +77,7 @@ const OrderModal = (function() {
             decBtn.addEventListener('click', () => adjustQuantity(-1));
             incBtn.addEventListener('click', () => adjustQuantity(1));
             qtyInput.addEventListener('change', validateQuantity);
+            console.log('Quantity controls initialized');
         }
     }
 
@@ -82,21 +85,31 @@ const OrderModal = (function() {
         const priceInput = modal.querySelector('input[name="price"]');
         const decBtn = modal.querySelector('.price-decrement');
         const incBtn = modal.querySelector('.price-increment');
+        const quickAdjustBtns = modal.querySelectorAll('.price-adjust');
 
         if (priceInput && decBtn && incBtn) {
             decBtn.addEventListener('click', () => adjustPrice(-1));
             incBtn.addEventListener('click', () => adjustPrice(1));
             priceInput.addEventListener('change', validatePrice);
+            
+            quickAdjustBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const adjustment = parseFloat(btn.dataset.adjust);
+                    if (!isNaN(adjustment)) {
+                        adjustPrice(adjustment);
+                    }
+                });
+            });
+            
+            console.log('Price controls initialized');
         }
     }
-
-    // Add these validation functions after setupPriceControls
 
     function validateQuantity(e) {
         const input = e.target;
         const value = parseInt(input.value);
-        const minQty = parseInt(input.getAttribute('min')) || 1;
-        const step = parseInt(input.getAttribute('step')) || 1;
+        const minQty = parseInt(currentSymbol?.lotSize || 1);
+        const step = parseInt(currentSymbol?.lotSize || 1);
 
         if (isNaN(value) || value < minQty) {
             input.value = minQty;
@@ -105,6 +118,7 @@ const OrderModal = (function() {
             input.value = Math.round(value / step) * step;
         }
         updateTotalQuantity(input.value);
+        console.log('Validated quantity:', input.value);
     }
 
     function validatePrice(e) {
@@ -112,22 +126,23 @@ const OrderModal = (function() {
         if (input.disabled) return;
 
         const value = parseFloat(input.value);
-        const step = parseFloat(input.getAttribute('step')) || 0.05;
+        const step = parseFloat(currentSymbol?.tickSize || 0.05);
 
         if (isNaN(value) || value <= 0) {
             input.value = formatPrice(currentSymbol?.ltp || 0);
         } else {
             // Round to nearest step
-            input.value = (Math.round(value / step) * step).toFixed(2);
+            input.value = formatPrice(Math.round(value / step) * step);
         }
+        console.log('Validated price:', input.value);
     }
-
 
     function show(symbolData, side = 'BUY', price = null) {
         if (!modal) return;
 
         currentSymbol = symbolData;
         orderSide = side;
+        console.log('Opening order modal for:', symbolData);
 
         updateModalContent();
         
@@ -135,7 +150,7 @@ const OrderModal = (function() {
         if (price !== null) {
             const priceInput = modal.querySelector('input[name="price"]');
             if (priceInput) {
-                priceInput.value = price.toFixed(2);
+                priceInput.value = formatPrice(price);
                 // Ensure LIMIT order type is selected
                 const limitRadio = modal.querySelector('input[value="LIMIT"]');
                 if (limitRadio) {
@@ -153,6 +168,7 @@ const OrderModal = (function() {
         if (!modal) return;
         
         modal.close();
+        console.log('Closing order modal');
         
         // Reset form
         const form = modal.querySelector('form');
@@ -171,21 +187,24 @@ const OrderModal = (function() {
 
     function updateModalContent() {
         if (!modal || !currentSymbol) return;
+        console.log('Updating modal content with symbol:', currentSymbol);
 
         // Update symbol info
         const symbolName = modal.querySelector('.symbol-name');
         const exchangeName = modal.querySelector('.exchange-name');
         const lotSizeInfo = modal.querySelector('#lot-info .lot-size');
+        const tickSizeInfo = modal.querySelector('#lot-info .tick-size');
         
         if (symbolName) symbolName.textContent = currentSymbol.symbol;
         if (exchangeName) exchangeName.textContent = currentSymbol.exchange;
         if (lotSizeInfo) lotSizeInfo.textContent = currentSymbol.lotSize || 1;
+        if (tickSizeInfo) tickSizeInfo.textContent = currentSymbol.tickSize || 0.05;
 
         // Update price info
         const priceElement = modal.querySelector('.current-price');
-        if (priceElement) {
-            priceElement.textContent = formatPrice(currentSymbol.ltp);
-        }
+        const ltpElement = modal.querySelector('.current-ltp');
+        if (priceElement) priceElement.textContent = formatPrice(currentSymbol.ltp);
+        if (ltpElement) ltpElement.textContent = formatPrice(currentSymbol.ltp);
 
         // Set order side
         setSide(orderSide);
@@ -196,17 +215,18 @@ const OrderModal = (function() {
         // Set default values
         setDefaultValues();
 
-        // Add this block at the end of updateModalContent function
+        // Update market depth if visible
         const depthContainer = modal.querySelector('#order-market-depth');
         if (depthContainer && !depthContainer.classList.contains('hidden')) {
-        updateMarketDepth(currentSymbol.token);
+            updateMarketDepth(currentSymbol.token);
         }
     }
 
     function updateProductType(exchange) {
+        console.log('Updating product type for exchange:', exchange);
         const isEquity = ['NSE', 'BSE'].includes(exchange);
-        const deliveryLabel = modal.querySelector('.delivery-type span');
-        const deliveryInput = modal.querySelector('#delivery');
+        const deliveryLabel = modal.querySelector('.delivery-text');
+        const deliveryInput = modal.querySelector('input[value="DELIVERY"]');
         
         if (deliveryLabel) {
             deliveryLabel.textContent = isEquity ? 'DELIVERY' : 'CARRY FORWARD';
@@ -218,6 +238,7 @@ const OrderModal = (function() {
 
     function setSide(side) {
         orderSide = side;
+        console.log('Setting order side to:', side);
         
         // Update button states
         const buyBtn = modal.querySelector('.buy-toggle');
@@ -244,16 +265,63 @@ const OrderModal = (function() {
         }
     }
 
+    function handleTabSwitch(type) {
+        currentOrderType = type;
+        console.log('Switching to order type:', type);
+
+        const tabs = modal.querySelectorAll('.order-tab');
+        tabs.forEach(tab => {
+            tab.classList.toggle('tab-active', tab.dataset.type === type);
+        });
+
+        // Update variety field
+        const varietyInput = modal.querySelector('[name="variety"]');
+        if (varietyInput) {
+            varietyInput.value = type.toUpperCase();
+        }
+
+        // Toggle stop loss fields
+        const stopLossFields = modal.querySelector('#stoploss-fields');
+        if (stopLossFields) {
+            stopLossFields.classList.toggle('hidden', type !== 'stoploss');
+        }
+    }
+
+    function handleOrderTypeChange(e) {
+        updateActiveState(e.target);
+        const type = e.target.value;
+        console.log('Order type changed to:', type);
+        
+        const priceInput = modal.querySelector('input[name="price"]');
+        const priceControls = modal.querySelector('.price-section');
+        const priceAdjustButtons = modal.querySelectorAll('.price-adjust');
+        
+        const isMarket = type === 'MARKET';
+        if (priceInput) {
+            priceInput.disabled = isMarket;
+            priceInput.value = isMarket ? '0' : formatPrice(currentSymbol?.ltp || 0);
+        }
+        
+        priceControls?.classList.toggle('opacity-50', isMarket);
+        priceAdjustButtons.forEach(btn => btn.disabled = isMarket);
+    }
+
+    function handleProductTypeChange(e) {
+        updateActiveState(e.target);
+        console.log('Product type changed to:', e.target.value);
+    }
+
     function setDefaultValues() {
         const form = modal.querySelector('form');
         if (!form || !currentSymbol) return;
+        console.log('Setting default values');
 
         // Set hidden values
         form.querySelector('#form-symbol').value = currentSymbol.symbol;
         form.querySelector('#form-token').value = currentSymbol.token;
         form.querySelector('#form-exchange').value = currentSymbol.exchange;
 
-        // Set quantity
+        // Set quantity with validation
         const qtyInput = form.querySelector('[name="quantity"]');
         if (qtyInput) {
             qtyInput.value = currentSymbol.lotSize || 1;
@@ -262,7 +330,7 @@ const OrderModal = (function() {
             updateTotalQuantity(qtyInput.value);
         }
 
-        // Set price
+        // Set price with validation
         const priceInput = form.querySelector('[name="price"]');
         if (priceInput) {
             priceInput.value = formatPrice(currentSymbol.ltp || 0);
@@ -272,32 +340,11 @@ const OrderModal = (function() {
         // Set product type based on exchange
         const isEquity = ['NSE', 'BSE'].includes(currentSymbol.exchange);
         const defaultProduct = isEquity ? 'INTRADAY' : 'CARRYFORWARD';
-        const productInput = form.querySelector(`[value="${defaultProduct}"]`);
+        const productInput = form.querySelector(`input[value="${defaultProduct}"]`);
         if (productInput) {
             productInput.checked = true;
-            updateButtonStates(productInput);
+            updateActiveState(productInput);
         }
-    }
-
-    function handleOrderTypeChange(e) {
-        updateButtonStates(e.target);
-        
-        const priceInput = modal.querySelector('input[name="price"]');
-        const priceControls = modal.querySelector('.price-controls');
-        
-        if (e.target.value === 'MARKET') {
-            priceInput.disabled = true;
-            priceInput.value = '0';
-            priceControls.classList.add('opacity-50');
-        } else {
-            priceInput.disabled = false;
-            priceInput.value = formatPrice(currentSymbol?.ltp || 0);
-            priceControls.classList.remove('opacity-50');
-        }
-    }
-
-    function handleProductTypeChange(e) {
-        updateButtonStates(e.target);
     }
 
     function adjustQuantity(direction) {
@@ -310,6 +357,7 @@ const OrderModal = (function() {
         if (newValue >= step) {
             qtyInput.value = newValue;
             updateTotalQuantity(newValue);
+            console.log('Quantity adjusted to:', newValue);
         }
     }
 
@@ -322,6 +370,7 @@ const OrderModal = (function() {
         
         if (newValue > 0) {
             priceInput.value = formatPrice(newValue);
+            console.log('Price adjusted to:', newValue);
         }
     }
 
@@ -333,27 +382,163 @@ const OrderModal = (function() {
         }
     }
 
-    // Add these new methods
+    function updateActiveState(input) {
+        const name = input.getAttribute('name');
+        const group = modal.querySelectorAll(`input[name="${name}"]`);
+        
+        group.forEach(radio => {
+            const label = radio.closest('label');
+            if (label) {
+                label.classList.toggle('btn-active', radio.checked);
+                label.classList.toggle('bg-primary', radio.checked);
+                label.classList.toggle('text-primary-content', radio.checked);
+            }
+        });
+    }
+
+    function initializeButtonStates() {
+        modal.querySelectorAll('input[type="radio"]:checked').forEach(updateActiveState);
+    }
+
+    async function handleSubmit(event) {
+        event.preventDefault();
+        console.log('Handling order submission...');
+
+        try {
+            const formData = new FormData(event.target);
+            const orderData = {
+                symbol: currentSymbol.symbol,
+                token: currentSymbol.token,
+                exchange: currentSymbol.exchange,
+                side: orderSide,
+                quantity: parseInt(formData.get('quantity')),
+                price: parseFloat(formData.get('price')),
+                ordertype: formData.get('ordertype'),
+                producttype: formData.get('producttype'),
+                variety: formData.get('variety') || 'NORMAL',
+                disclosedquantity: "0"
+            };
+
+            if (orderData.variety === 'STOPLOSS' && formData.get('triggerprice')) {
+                orderData.triggerprice = parseFloat(formData.get('triggerprice'));
+            }
+
+            // Validate order data
+            if (!validateOrderData(orderData)) {
+                console.error('Order validation failed');
+                return;
+            }
+
+            console.log('Order data prepared:', orderData);
+
+            if (callbacks.onOrderSubmit) {
+                const response = await callbacks.onOrderSubmit(orderData);
+                console.log('Order response received:', response);
+                return response;
+            }
+
+        } catch (error) {
+            console.error('Order submission error:', error);
+            throw error;
+        }
+    }
+
+    function validateOrderData(orderData) {
+        // Basic validation rules
+        if (!orderData.quantity || orderData.quantity <= 0) {
+            window.showToast?.('error', 'Invalid quantity');
+            return false;
+        }
+
+        if (orderData.ordertype === 'LIMIT' && (!orderData.price || orderData.price <= 0)) {
+            window.showToast?.('error', 'Invalid price for LIMIT order');
+            return false;
+        }
+
+        if (orderData.variety === 'STOPLOSS' && (!orderData.triggerprice || orderData.triggerprice <= 0)) {
+            window.showToast?.('error', 'Trigger price required for STOPLOSS order');
+            return false;
+        }
+
+        // Validate quantity is multiple of lot size
+        const lotSize = currentSymbol?.lotSize || 1;
+        if (orderData.quantity % lotSize !== 0) {
+            window.showToast?.('error', `Quantity must be multiple of lot size: ${lotSize}`);
+            return false;
+        }
+
+        // Validate price tick size for limit orders
+        if (orderData.ordertype === 'LIMIT') {
+            const tickSize = currentSymbol?.tickSize || 0.05;
+            const priceRemainder = orderData.price % tickSize;
+            if (priceRemainder > 0.0001) { // Using small epsilon for float comparison
+                window.showToast?.('error', `Price must be multiple of tick size: ${tickSize}`);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    function toggleMarketDepth() {
+        const depthContainer = modal.querySelector('#order-market-depth');
+        const toggleIcon = modal.querySelector('.market-depth-icon');
+        const toggleButton = modal.querySelector('.market-depth-toggle');
+        
+        if (depthContainer) {
+            const isHidden = depthContainer.classList.contains('hidden');
+            depthContainer.classList.toggle('hidden');
+            
+            if (toggleIcon) {
+                toggleIcon.style.transform = isHidden ? 'rotate(180deg)' : '';
+            }
+            if (toggleButton) {
+                toggleButton.setAttribute('aria-expanded', !isHidden);
+            }
+    
+            if (!isHidden && currentSymbol) {
+                const marketData = window.MarketDataUpdater?.previousValues.get(currentSymbol.token);
+                if (marketData) {
+                    updateMarketDepth(marketData);
+                }
+            }
+            console.log('Market depth toggled:', !isHidden);
+        }
+    }
+
     function updateMarketDepth(data) {
+        if (!modal || !data) return;
+
+        console.log('Updating market depth with data:', data);
 
         // Update OHLC values
-        modal.querySelector('.ohlc-open').textContent = formatPrice(data.openPrice);
-        modal.querySelector('.ohlc-high').textContent = formatPrice(data.highPrice);
-        modal.querySelector('.ohlc-low').textContent = formatPrice(data.lowPrice);
-        modal.querySelector('.ohlc-close').textContent = formatPrice(data.closePrice);
+        const elements = {
+            open: modal.querySelector('.open'),
+            high: modal.querySelector('.high'),
+            low: modal.querySelector('.low'),
+            close: modal.querySelector('.close'),
+            volume: modal.querySelector('.volume'),
+            totalBuy: modal.querySelector('.total-buy'),
+            totalSell: modal.querySelector('.total-sell')
+        };
 
-        // Update volume and total quantities
-        modal.querySelector('.depth-volume').textContent = formatVolume(data.volTraded);
-        modal.querySelector('.total-buy').textContent = formatNumber(data.totalBuyQty);
-        modal.querySelector('.total-sell').textContent = formatNumber(data.totalSellQty);
+        // Update basic market data
+        if (elements.open) elements.open.textContent = formatPrice(data.openPrice);
+        if (elements.high) elements.high.textContent = formatPrice(data.highPrice);
+        if (elements.low) elements.low.textContent = formatPrice(data.lowPrice);
+        if (elements.close) elements.close.textContent = formatPrice(data.closePrice);
+        if (elements.volume) elements.volume.textContent = formatVolume(data.volTraded);
+        if (elements.totalBuy) elements.totalBuy.textContent = formatNumber(data.totalBuyQty);
+        if (elements.totalSell) elements.totalSell.textContent = formatNumber(data.totalSellQty);
 
+        // Update depth table
         const depthContainer = modal.querySelector('#order-market-depth .depth-data');
         if (!depthContainer || !data.bestBids || !data.bestAsks) return;
 
-        let html = '';
         const bids = [...data.bestBids, ...Array(5)].slice(0, 5);
         const asks = [...data.bestAsks, ...Array(5)].slice(0, 5);
 
+        let html = '';
         for (let i = 0; i < 5; i++) {
             const bid = bids[i] || { qty: '--', numOrders: '--', price: '--' };
             const ask = asks[i] || { qty: '--', numOrders: '--', price: '--' };
@@ -377,7 +562,15 @@ const OrderModal = (function() {
         depthContainer.innerHTML = html;
     }
 
-    // Add this helper function for volume formatting
+    function formatPrice(price) {
+        return typeof price === 'number' ? price.toFixed(2) : '--';
+    }
+
+    function formatNumber(num) {
+        if (num === '--' || typeof num !== 'number') return '--';
+        return num.toLocaleString('en-IN');
+    }
+
     function formatVolume(volume) {
         if (!volume || isNaN(volume)) return '--';
         
@@ -391,111 +584,25 @@ const OrderModal = (function() {
         return volume.toString();
     }
 
-    function setPrice(price) {
-        if (!modal || !price || isNaN(price)) return;
-        
-        const priceInput = modal.querySelector('input[name="price"]');
-        const orderTypeLimit = modal.querySelector('input[value="LIMIT"]');
-        
-        if (priceInput && orderTypeLimit) {
-            orderTypeLimit.checked = true;
-            priceInput.disabled = false;
-            priceInput.value = price.toFixed(2);
-            handleOrderTypeChange({ target: orderTypeLimit });
-        }
-    }
-
-    function formatNumber(num) {
-        if (num === '--' || typeof num !== 'number') return '--';
-        return num.toLocaleString('en-IN');
-    }
-
-    function toggleMarketDepth() {
-        const depthContainer = modal.querySelector('#order-market-depth');
-        const toggleIcon = modal.querySelector('.market-depth-icon');
-        const toggleButton = modal.querySelector('.market-depth-toggle');
-        
-        if (depthContainer) {
-            const isHidden = depthContainer.classList.contains('hidden');
-            
-            // Toggle the depth container visibility
-            depthContainer.classList.toggle('hidden');
-            
-            // Update the toggle button icon/state
-            if (toggleIcon) {
-                toggleIcon.style.transform = isHidden ? 'rotate(180deg)' : '';
-            }
-            if (toggleButton) {
-                toggleButton.setAttribute('aria-expanded', !isHidden);
-            }
-    
-            // If showing depth, ensure we have the latest data
-            if (!isHidden && currentSymbol) {
-                // Trigger market depth update
-                const marketData = window.MarketDataUpdater?.previousValues.get(currentSymbol.token);
-                if (marketData) {
-                    updateMarketDepth(marketData);
-                }
-            }
-        }
-    }
-
-    function updateButtonStates(input) {
-        const name = input.getAttribute('name');
-        const group = modal.querySelectorAll(`input[name="${name}"]`);
-        
-        group.forEach(radio => {
-            const label = radio.closest('label');
-            if (label) {
-                if (radio.checked) {
-                    label.classList.add('btn-active', 'bg-primary', 'text-primary-content');
-                } else {
-                    label.classList.remove('btn-active', 'bg-primary', 'text-primary-content');
-                }
-            }
-        });
-    }
-
-    function initializeButtonStates() {
-        modal.querySelectorAll('input[type="radio"]:checked').forEach(updateButtonStates);
-    }
-
-    function handleSubmit(event) {
-        event.preventDefault();
-
-        const formData = new FormData(event.target);
-        const orderData = {
-            symbol: currentSymbol.symbol,
-            token: currentSymbol.token,
-            exchange: currentSymbol.exchange,
-            side: orderSide,
-            quantity: parseInt(formData.get('quantity')),
-            price: parseFloat(formData.get('price')),
-            ordertype: formData.get('ordertype'),
-            producttype: formData.get('producttype'),
-            variety: formData.get('variety') || 'NORMAL'
-        };
-
-        if (orderData.variety === 'STOPLOSS') {
-            orderData.triggerprice = parseFloat(formData.get('triggerprice'));
-        }
-
-        if (callbacks.onOrderSubmit) {
-            callbacks.onOrderSubmit(orderData);
-        }
-    }
-
-    function formatPrice(price) {
-        return typeof price === 'number' ? price.toFixed(2) : '--';
-    }
-
+    // Public API
     return {
         init,
         show,
         hide,
         setSide,
-        setPrice,  // Add this
-        updateMarketDepth  // Add this
+        setPrice: (price) => {
+            const priceInput = modal?.querySelector('input[name="price"]');
+            const orderTypeLimit = modal?.querySelector('input[value="LIMIT"]');
+            
+            if (priceInput && orderTypeLimit && price && !isNaN(price)) {
+                orderTypeLimit.checked = true;
+                priceInput.disabled = false;
+                priceInput.value = formatPrice(price);
+                handleOrderTypeChange({ target: orderTypeLimit });
+                console.log('Price set to:', price);
+            }
+        },
+        updateMarketDepth
     };
 })();
 
