@@ -58,12 +58,11 @@ class BrokerService:
         # Add stop loss specific fields
         if order_data.get("variety") == "STOPLOSS":
             payload["triggerprice"] = str(order_data.get("triggerprice", "0"))
-
+        print('Prepared payload:', payload)
         return json.dumps(payload)
 
     def _prepare_headers(self, access_token: str, api_key: str) -> Dict:
         """Prepare request headers with authentication"""
-      
 
         return {
             'Authorization': f'Bearer {access_token}',

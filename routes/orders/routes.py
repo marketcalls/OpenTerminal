@@ -1,14 +1,14 @@
 # routes/orders/routes.py
-from flask import Blueprint, request, jsonify
+from flask import request, jsonify, session
+from . import orders_bp  # Import the blueprint from __init__.py
 from .services.order_service import OrderService
 from .utils.helpers import is_market_open, format_log_message
 import logging
 
-orders_bp = Blueprint('orders', __name__)
 order_service = OrderService()
 logger = logging.getLogger('orders')
 
-@orders_bp.route('/api/orders/place', methods=['POST'])
+@orders_bp.route('/orders/place', methods=['POST'])
 async def place_order():
     """Place a new order"""
     try:
@@ -20,7 +20,7 @@ async def place_order():
             }), 400
 
         # Get user ID from session
-        user_id = request.user_id  # Implement your auth logic
+        user_id = session['client_id']  # Implement your auth logic
         
         # Get order data
         order_data = request.get_json()

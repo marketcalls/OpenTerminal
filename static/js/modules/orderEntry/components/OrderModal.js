@@ -403,7 +403,7 @@ const OrderModal = (function() {
     async function handleSubmit(event) {
         event.preventDefault();
         console.log('Handling order submission...');
-
+    
         try {
             const formData = new FormData(event.target);
             const orderData = {
@@ -412,71 +412,52 @@ const OrderModal = (function() {
                 exchange: currentSymbol.exchange,
                 side: orderSide,
                 quantity: parseInt(formData.get('quantity')),
-                price: parseFloat(formData.get('price')),
+                price: formData.get('ordertype') === 'MARKET' ? null : parseFloat(formData.get('price')),
                 ordertype: formData.get('ordertype'),
                 producttype: formData.get('producttype'),
                 variety: formData.get('variety') || 'NORMAL',
                 disclosedquantity: "0"
             };
-
+    
             if (orderData.variety === 'STOPLOSS' && formData.get('triggerprice')) {
                 orderData.triggerprice = parseFloat(formData.get('triggerprice'));
             }
-
+    
             // Validate order data
             if (!validateOrderData(orderData)) {
-                console.error('Order validation failed');
                 return;
             }
-
+    
             console.log('Order data prepared:', orderData);
-
+    
             if (callbacks.onOrderSubmit) {
                 const response = await callbacks.onOrderSubmit(orderData);
                 console.log('Order response received:', response);
                 return response;
             }
-
+    
         } catch (error) {
             console.error('Order submission error:', error);
             throw error;
         }
     }
-
+    
     function validateOrderData(orderData) {
-        // Basic validation rules
         if (!orderData.quantity || orderData.quantity <= 0) {
             window.showToast?.('error', 'Invalid quantity');
             return false;
         }
-
+    
         if (orderData.ordertype === 'LIMIT' && (!orderData.price || orderData.price <= 0)) {
             window.showToast?.('error', 'Invalid price for LIMIT order');
             return false;
         }
-
+    
         if (orderData.variety === 'STOPLOSS' && (!orderData.triggerprice || orderData.triggerprice <= 0)) {
             window.showToast?.('error', 'Trigger price required for STOPLOSS order');
             return false;
         }
-
-        // Validate quantity is multiple of lot size
-        const lotSize = currentSymbol?.lotSize || 1;
-        if (orderData.quantity % lotSize !== 0) {
-            window.showToast?.('error', `Quantity must be multiple of lot size: ${lotSize}`);
-            return false;
-        }
-
-        // Validate price tick size for limit orders
-        if (orderData.ordertype === 'LIMIT') {
-            const tickSize = currentSymbol?.tickSize || 0.05;
-            const priceRemainder = orderData.price % tickSize;
-            if (priceRemainder > 0.0001) { // Using small epsilon for float comparison
-                window.showToast?.('error', `Price must be multiple of tick size: ${tickSize}`);
-                return false;
-            }
-        }
-
+    
         return true;
     }
 

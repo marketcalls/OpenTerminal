@@ -8,7 +8,7 @@ from .market_feed import MarketFeedService
 from ..utils.formatters import format_order_response
 from extensions import redis_client
 from models import OrderLog, db
-from datetime import datetime
+import json
 
 class OrderService:
     def __init__(self):
@@ -20,13 +20,21 @@ class OrderService:
     async def place_order(self, client_id: str, order_data: Dict) -> Dict:
         """Place an order with validation and preprocessing"""
         try:
-            # Get authentication tokens from Redis
+            print("Placing order for client:", client_id)
+            print("Order data received:", order_data)
+
+            # Get authentication tokens
             auth_data = self._get_auth_data(client_id)
             if not auth_data:
                 raise ValueError("Invalid or expired session")
 
+            # Pre-process order data
+            processed_data = self._preprocess_order_data(order_data)
+            print("Processed order data:", processed_data)
+
             # Validate order
-            validated_data = self.validator.validate(order_data)
+            validated_data = self.validator.validate(processed_data)
+            print("Validated order data:", validated_data)
             
             # Apply exchange rules
             processed_data = self.exchange_rules.apply_rules(
@@ -34,19 +42,20 @@ class OrderService:
                 order_data['exchange']
             )
 
-            # Get latest price
-            latest_price = await self.market_feed.get_ltp(
-                processed_data['token'],
-                processed_data['exchange']
-            )
+            # Get latest price for price validation (if LIMIT order)
+            if processed_data['ordertype'] == 'LIMIT':
+                latest_price = await self.market_feed.get_ltp(
+                    processed_data['token'],
+                    processed_data['exchange']
+                )
 
-            # Validate price
-            if not self.validator.validate_price(
-                processed_data['price'],
-                latest_price,
-                processed_data['ordertype']
-            ):
-                raise ValueError("Invalid price")
+                # Validate price
+                if not self.validator.validate_price(
+                    processed_data['price'],
+                    latest_price,
+                    processed_data['ordertype']
+                ):
+                    raise ValueError("Invalid price")
 
             # Place order with broker
             response = await self.broker.place_order(
@@ -54,17 +63,50 @@ class OrderService:
                 auth_data['access_token'],
                 auth_data['api_key']
             )
+            print("Broker response:", response)
 
             # Log order
-            await self._log_order(client_id, processed_data, response)
+            try:
+                await self._log_order(client_id, processed_data, response)
+            except Exception as log_error:
+                print(f"Error logging order: {str(log_error)}")
+                # Continue even if logging fails
 
-            # Format and return response
-            return format_order_response(response)
+            # Return response
+            return {
+                'status': 'success',
+                'message': 'Order placed successfully',
+                'data': response
+            }
 
         except Exception as e:
-            # Log error
             print(f"Error placing order: {str(e)}")
             raise
+
+    def _preprocess_order_data(self, order_data: Dict) -> Dict:
+        """Preprocess order data before validation"""
+        processed_data = order_data.copy()
+
+        # Handle MARKET orders
+        if processed_data.get('ordertype') == 'MARKET':
+            processed_data['price'] = '0'
+            processed_data['triggerprice'] = '0'
+        elif processed_data.get('price') is None:
+            processed_data['price'] = '0'
+
+        # Convert quantity to string
+        processed_data['quantity'] = str(processed_data.get('quantity', '0'))
+        
+        # Ensure price is string
+        if 'price' in processed_data and processed_data['price'] is not None:
+            processed_data['price'] = str(processed_data['price'])
+
+        # Handle empty values
+        processed_data['variety'] = processed_data.get('variety', 'NORMAL')
+        processed_data['disclosedquantity'] = processed_data.get('disclosedquantity', '0')
+        processed_data['triggerprice'] = str(processed_data.get('triggerprice', '0'))
+
+        return processed_data
 
     def _get_auth_data(self, client_id: str) -> Optional[Dict]:
         """Get authentication data from Redis"""
@@ -84,34 +126,34 @@ class OrderService:
     async def _log_order(self, client_id: str, order_data: Dict, response: Dict) -> None:
         """Log order to database"""
         try:
+            # Parse response if it's a string
+            if isinstance(response, str):
+                response = json.loads(response)
+
+            # Handle different response formats
+            response_data = response.get('data', {}) if isinstance(response, dict) else {}
+            
             log = OrderLog(
                 user_id=client_id,
-                order_id=response.get('data', {}).get('orderid', ''),
-                symbol=order_data['symbol'],
-                exchange=order_data['exchange'],
-                order_type=order_data['ordertype'],
-                transaction_type=order_data['side'],
-                product_type=order_data['producttype'],
-                quantity=int(order_data['quantity']),
-                price=float(order_data.get('price', 0)),
-                trigger_price=float(order_data.get('triggerprice', 0)) 
-                    if order_data.get('variety') == 'STOPLOSS' else None,
-                status=response.get('status', 'FAILED'),
-                message=response.get('message', '')
+                order_id=str(response_data.get('orderid', '')),
+                symbol=order_data.get('symbol', ''),
+                exchange=order_data.get('exchange', ''),
+                order_type=order_data.get('ordertype', ''),
+                transaction_type=order_data.get('side', ''),
+                product_type=order_data.get('producttype', ''),
+                quantity=int(order_data.get('quantity', 0)),
+                price=float(order_data['price']) if order_data.get('price', '0') != '0' else None,
+                trigger_price=float(order_data['triggerprice']) if order_data.get('triggerprice', '0') != '0' else None,
+                status=response.get('status', 'FAILED') if isinstance(response, dict) else 'UNKNOWN',
+                message=response.get('message', '') if isinstance(response, dict) else str(response)
             )
             
             db.session.add(log)
             db.session.commit()
+            print("Order logged successfully")
             
         except Exception as e:
             print(f"Error logging order: {str(e)}")
-            # Don't raise exception as this is not critical
-
-    async def modify_order(self, client_id: str, order_id: str, 
-                         modifications: Dict) -> Dict:
-        """Modify an existing order"""
-        pass
-
-    async def cancel_order(self, client_id: str, order_id: str) -> Dict:
-        """Cancel an existing order"""
-        pass
+            print(f"Order data: {order_data}")
+            print(f"Response: {response}")
+            # Don't raise the exception as this is not critical for order placement
