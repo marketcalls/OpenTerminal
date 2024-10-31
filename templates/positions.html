@@ -23,8 +23,7 @@
                     <td class="px-4 py-2 text-center">{{ position.producttype }}</td>
                     <td class="px-4 py-2 text-center">{{ position.buyamount | float | round(2) }}</td>
                     <td class="px-4 py-2 text-center">{{ position.sellamount | float | round(2) }}</td>
-                    <td class="px-4 py-2 text-center {% if net_qty > 0 %} text-green-500 {% elif net_qty < 0 %} text-red-500 {% endif %}">
-                        {{ net_qty }}
+                    <td class="px-4 py-2 text-center">{{ position.netqty | int }}</td>
                     </td>
                     <td class="px-4 py-2 text-center">{{ position.netprice | float | round(2) }}</td>
                 </tr>
