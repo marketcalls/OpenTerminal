@@ -1,58 +1,144 @@
 {% extends 'layout.html' %}
 
 {% block content %}
-<div class="container mx-auto mt-10">
-    <h1 class="text-3xl font-bold mb-6">Order Book</h1>
-    <div class="overflow-x-auto">
-        <table class="table-auto w-full bg-gray-800 text-white shadow-lg">
+<div class="container mx-auto p-4">
+    <h1 class="text-2xl font-bold mb-6">Order Book</h1>
+    
+    <div class="overflow-x-auto rounded-xl">
+        <table class="w-full">
+            <!-- Table Header -->
             <thead>
-                <tr class="bg-gray-700">
-                    <th class="px-4 py-2 text-center">Order ID</th>
-                    <th class="px-4 py-2 text-center">Symbol</th>
-                    <th class="px-4 py-2 text-center">Order Type</th>
-                    <th class="px-4 py-2 text-center">Product Type</th>
-                    <th class="px-4 py-2 text-center">Transaction Type</th>
-                    <th class="px-4 py-2 text-center">Price</th>
-                    <th class="px-4 py-2 text-center">Trigger Price</th>
-                    <th class="px-4 py-2 text-center">Quantity</th>
-                    <th class="px-4 py-2 text-center min-w-[120px]">Order Status</th>
-                    <th class="px-4 py-2 text-center">Update Time</th>
+                <tr>
+                    <th class="text-xs font-semibold px-4 py-3 text-left">Order ID</th>
+                    <th class="text-xs font-semibold px-4 py-3 text-left">Symbol</th>
+                    <th class="text-xs font-semibold px-4 py-3 text-left">Order Type</th>
+                    <th class="text-xs font-semibold px-4 py-3 text-left">Product Type</th>
+                    <th class="text-xs font-semibold px-4 py-3 text-center">Transaction</th>
+                    <th class="text-xs font-semibold px-4 py-3 text-right">Price</th>
+                    <th class="text-xs font-semibold px-4 py-3 text-right">Trigger</th>
+                    <th class="text-xs font-semibold px-4 py-3 text-center">Qty</th>
+                    <th class="text-xs font-semibold px-4 py-3 text-center min-w-[120px]">Status</th>
+                    <th class="text-xs font-semibold px-4 py-3 text-right">Time</th>
                 </tr>
             </thead>
+            
+            <!-- Table Body -->
             <tbody>
                 {% for order in order_data %}
-                <tr class="border-b border-gray-600">
-                    <td class="px-4 py-2 text-center">{{ order.orderid }}</td>
-                    <td class="px-4 py-2 text-center">{{ order.tradingsymbol }}</td>
-                    <td class="px-4 py-2 text-center">{{ order.ordertype }}</td>
-                    <td class="px-4 py-2 text-center">{{ order.producttype }}</td>
-                    <td class="px-4 py-2 text-center">
-                        <span class="badge badge-outline {{ 'badge-success' if order.transactiontype == 'BUY' else 'badge-error' }}">
+                <tr class="order-row">
+                    <td class="px-4 py-3 text-left text-xs">{{ order.orderid }}</td>
+                    <td class="px-4 py-3 text-left text-xs font-medium">{{ order.tradingsymbol }}</td>
+                    <td class="px-4 py-3 text-left text-xs">{{ order.ordertype }}</td>
+                    <td class="px-4 py-3 text-left text-xs">{{ order.producttype }}</td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="text-xs px-2 py-1 rounded-md inline-block min-w-[60px]
+                            {% if order.transactiontype == 'BUY' %}
+                                bg-emerald-500/10 text-emerald-500
+                            {% else %}
+                                bg-rose-500/10 text-rose-500
+                            {% endif %}">
                             {{ order.transactiontype }}
                         </span>
                     </td>
-                    <td class="px-4 py-2 text-center">{{ order.price | float | round(2) }}</td>
-                    <td class="px-4 py-2 text-center">{{ order.triggerprice | float | round(2) }}</td>
-                    <td class="px-4 py-2 text-center">{{ order.quantity }}</td>
-                    <td class="px-4 py-2 text-center whitespace-nowrap">
-                        <span class="badge badge-outline min-w-[110px] 
-                            {% if order.orderstatus == 'complete' %} badge-success 
-                            {% elif order.orderstatus == 'open' %} badge-info
-                            {% elif order.orderstatus == 'trigger pending' %} badge-info  
-                            {% elif order.orderstatus == 'rejected' %} badge-error 
+                    <td class="px-4 py-3 text-right text-xs font-medium">{{ order.price | float | round(2) }}</td>
+                    <td class="px-4 py-3 text-right text-xs">{{ order.triggerprice | float | round(2) }}</td>
+                    <td class="px-4 py-3 text-center text-xs">{{ order.quantity }}</td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="text-xs px-2 py-1 rounded-md inline-block min-w-[90px]
+                            {% if order.orderstatus == 'complete' %}
+                                bg-emerald-500/10 text-emerald-500
+                            {% elif order.orderstatus in ['open', 'trigger pending'] %}
+                                bg-blue-500/10 text-blue-500
+                            {% elif order.orderstatus == 'cancelled' %}
+                                bg-amber-500/10 text-amber-500
+                            {% else %}
+                                bg-rose-500/10 text-rose-500
                             {% endif %}">
                             {{ order.orderstatus }}
                         </span>
                     </td>
-                    <td class="px-4 py-2 text-center">{{ order.updatetime }}</td>
+                    <td class="px-4 py-3 text-right text-xs">{{ order.updatetime }}</td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="10" class="px-4 py-2 text-center">No orders found.</td>
+                    <td colspan="10" class="px-4 py-8 text-center text-sm text-base-content/60">No orders found.</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
+
+<style>
+    /* Modern Table Styles */
+    [data-theme='light'] thead tr {
+        background-color: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    [data-theme='dark'] thead tr {
+        background-color: rgba(30, 41, 59, 0.5);
+        border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+    }
+
+    /* Row styles for light theme */
+    [data-theme='light'] .order-row {
+        border-bottom: 1px solid #f1f5f9;
+        background-color: white;
+    }
+
+    [data-theme='light'] .order-row:hover {
+        background-color: #f8fafc;
+    }
+
+    /* Row styles for dark theme */
+    [data-theme='dark'] .order-row {
+        border-bottom: 1px solid rgba(51, 65, 85, 0.2);
+        background-color: #1e293b;
+    }
+
+    [data-theme='dark'] .order-row:hover {
+        background-color: rgba(30, 41, 59, 0.8);
+    }
+
+    /* Common row styles */
+    .order-row td {
+        transition: all 0.2s ease-in-out;
+    }
+
+    /* Table wrapper styles */
+    .overflow-x-auto {
+        background: transparent;
+        border: 1px solid transparent;
+    }
+
+    [data-theme='light'] .overflow-x-auto {
+        border-color: #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    [data-theme='dark'] .overflow-x-auto {
+        border-color: rgba(51, 65, 85, 0.5);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Status badge hover effect */
+    td span {
+        transition: all 0.2s ease;
+    }
+
+    td span:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Add zebra striping for better readability */
+    [data-theme='light'] .order-row:nth-child(even) {
+        background-color: #fafafa;
+    }
+
+    [data-theme='dark'] .order-row:nth-child(even) {
+        background-color: rgba(30, 41, 59, 0.97);
+    }
+</style>
 {% endblock %}

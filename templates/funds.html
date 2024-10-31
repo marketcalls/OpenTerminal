@@ -1,29 +1,170 @@
 {% extends 'layout.html' %}
 
 {% block content %}
-<div class="container mx-auto mt-10">
-    <h1 class="text-3xl font-bold mb-6">Fund Details</h1>
-    <div class="stats shadow-lg bg-gray-800">
-        <div class="stat">
-            <div class="stat-title">Net</div>
-            <div class="stat-value text-green-500">{{ fund_data.net | float | round(2) }}</div>
+<div class="container mx-auto p-4">
+    <h1 class="text-2xl font-bold mb-6">Fund Details</h1>
+    
+    <!-- Fund Cards Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <!-- Net -->
+        <div class="fund-card">
+            <div class="fund-icon bg-emerald-500/10">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12a8 8 0 01-8 8m0 0a8 8 0 01-8-8m8 8v3m0-3a8 8 0 008-8h3m-3 0a8 8 0 00-8-8m0 0v3m0-3a8 8 0 00-8 8h3" />
+                </svg>
+            </div>
+            <div class="fund-content">
+                <div class="fund-title">Net</div>
+                <div class="fund-value text-emerald-500">₹{{ fund_data.net | float | round(2) }}</div>
+            </div>
         </div>
-        <div class="stat">
-            <div class="stat-title">Collateral</div>
-            <div class="stat-value text-yellow-500">{{ fund_data.collateral | float | round(2) }}</div>
+
+        <!-- Collateral -->
+        <div class="fund-card">
+            <div class="fund-icon bg-blue-500/10">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                </svg>
+            </div>
+            <div class="fund-content">
+                <div class="fund-title">Collateral</div>
+                <div class="fund-value text-blue-500">₹{{ fund_data.collateral | float | round(2) }}</div>
+            </div>
         </div>
-        <div class="stat">
-            <div class="stat-title">M2M Unrealized</div>
-            <div class="stat-value text-red-500">{{ fund_data.m2munrealized | float | round(2) }}</div>
+
+        <!-- M2M Unrealized -->
+        <div class="fund-card">
+            <div class="fund-icon bg-rose-500/10">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                </svg>
+            </div>
+            <div class="fund-content">
+                <div class="fund-title">M2M Unrealized</div>
+                <div class="fund-value text-rose-500">₹{{ fund_data.m2munrealized | float | round(2) }}</div>
+            </div>
         </div>
-        <div class="stat">
-            <div class="stat-title">M2M Realized</div>
-            <div class="stat-value text-green-500">{{ fund_data.m2mrealized | float | round(2) }}</div>
+
+        <!-- M2M Realized -->
+        <div class="fund-card">
+            <div class="fund-icon bg-emerald-500/10">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+            </div>
+            <div class="fund-content">
+                <div class="fund-title">M2M Realized</div>
+                <div class="fund-value text-emerald-500">₹{{ fund_data.m2mrealized | float | round(2) }}</div>
+            </div>
         </div>
-        <div class="stat">
-            <div class="stat-title">Utilized Debits</div>
-            <div class="stat-value text-red-500">{{ fund_data.utiliseddebits | float | round(2) }}</div>
+
+        <!-- Utilized Debits -->
+        <div class="fund-card">
+            <div class="fund-icon bg-rose-500/10">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="fund-content">
+                <div class="fund-title">Utilized Debits</div>
+                <div class="fund-value text-rose-500">₹{{ fund_data.utiliseddebits | float | round(2) }}</div>
+            </div>
         </div>
     </div>
 </div>
+
+<style>
+    /* Fund Card Styles */
+    .fund-card {
+        @apply p-4 rounded-xl border relative overflow-hidden flex items-center gap-4;
+        transition: all 0.3s ease;
+    }
+
+    [data-theme='light'] .fund-card {
+        border-color: #e2e8f0;
+        background-color: white;
+    }
+
+    [data-theme='dark'] .fund-card {
+        border-color: rgba(51, 65, 85, 0.5);
+        background-color: #1e293b;
+    }
+
+    .fund-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+                   0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+
+    /* Fund Icon */
+    .fund-icon {
+        @apply p-3 rounded-lg flex items-center justify-center;
+    }
+
+    /* Fund Content */
+    .fund-content {
+        @apply flex-1;
+    }
+
+    .fund-title {
+        @apply text-xs font-medium opacity-70 mb-1;
+    }
+
+    .fund-value {
+        @apply text-xl font-bold tabular-nums tracking-tight;
+    }
+
+    /* Card background effect */
+    .fund-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(
+            800px circle at var(--mouse-x, 0) var(--mouse-y, 0),
+            rgba(255, 255, 255, 0.06),
+            transparent 40%
+        );
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+
+    .fund-card:hover::before {
+        opacity: 1;
+    }
+
+    /* Loading animation */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fund-card {
+        animation: fadeIn 0.5s ease-out forwards;
+    }
+
+    .fund-card:nth-child(1) { animation-delay: 0.1s; }
+    .fund-card:nth-child(2) { animation-delay: 0.2s; }
+    .fund-card:nth-child(3) { animation-delay: 0.3s; }
+    .fund-card:nth-child(4) { animation-delay: 0.4s; }
+    .fund-card:nth-child(5) { animation-delay: 0.5s; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Add mouse move effect to cards
+    document.querySelectorAll('.fund-card').forEach(card => {
+        card.addEventListener('mousemove', e => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            card.style.setProperty('--mouse-x', `${x}px`);
+            card.style.setProperty('--mouse-y', `${y}px`);
+        });
+    });
+});
+</script>
 {% endblock %}

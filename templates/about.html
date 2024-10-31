@@ -1,38 +1,181 @@
-{% extends 'layout.html' %}
-{% block content %}
-<h1 class="text-4xl font-bold mb-4">About Open Terminal</h1>
-<p class="text-xl text-gray-400">Empowering Traders with Precision and Speed</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About - Open Terminal</title>
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+        }
 
-<!-- Features section from your old about.html -->
-<section class="text-center mb-10">
-    <h2 class="text-3xl font-bold text-white mb-8">Core Features of Trading Terminal</h2>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-        <div class="bg-purple-600 text-white p-6 rounded-lg shadow-lg transform transition duration-500 hover:scale-105">
-            <h3 class="text-2xl font-semibold mb-2">Realtime Watchlists</h3>
-            <p class="text-base">Stay updated with live market data and customizable watchlists.</p>
-        </div>
-        <div class="bg-blue-600 text-white p-6 rounded-lg shadow-lg transform transition duration-500 hover:scale-105">
-            <h3 class="text-2xl font-semibold mb-2">Placing Orders from Watchlists</h3>
-            <p class="text-base">Easily place trades directly from your real-time watchlists.</p>
-        </div>
-        <div class="bg-indigo-600 text-white p-6 rounded-lg shadow-lg transform transition duration-500 hover:scale-105">
-            <h3 class="text-2xl font-semibold mb-2">Order Book & Holdings</h3>
-            <p class="text-base">Manage your Order Book, Trade Book, Position Book, and Holdings efficiently.</p>
-        </div>
-        <div class="bg-teal-600 text-white p-6 rounded-lg shadow-lg transform transition duration-500 hover:scale-105">
-            <h3 class="text-2xl font-semibold mb-2">Trailing Stoploss & MTM Square Off</h3>
-            <p class="text-base">Automatically manage risk with trailing stoploss orders and MTM-based square off.</p>
-        </div>
-        <div class="bg-green-600 text-white p-6 rounded-lg shadow-lg transform transition duration-500 hover:scale-105">
-            <h3 class="text-2xl font-semibold mb-2">Voice-Based Trading</h3>
-            <p class="text-base">Trade seamlessly using our voice-enabled trading system.</p>
-        </div>
-        <div class="bg-pink-600 text-white p-6 rounded-lg shadow-lg transform transition duration-500 hover:scale-105">
-            <h3 class="text-2xl font-semibold mb-2">Keyboard-Based Orders</h3>
-            <p class="text-base">Execute orders swiftly using keyboard shortcuts for faster trades.</p>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #1a1b1e;
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 4rem 0;
+            background: var(--primary-gradient);
+            margin-bottom: 4rem;
+            clip-path: polygon(0 0, 100% 0, 100% 85%, 0 100%);
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            margin: 0;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 1rem auto;
+            animation: fadeInUp 0.8s ease-out 0.2s backwards;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            padding: 2rem 0;
+        }
+
+        .feature-card {
+            background: var(--card-bg);
+            border-radius: 1rem;
+            padding: 2rem;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin: 0 0 1rem 0;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        .back-button {
+            display: inline-block;
+            margin-top: 2rem;
+            padding: 1rem 2rem;
+            background: var(--primary-gradient);
+            color: white;
+            text-decoration: none;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            transition: transform 0.2s ease;
+        }
+
+        .back-button:hover {
+            transform: translateY(-2px);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .hero {
+                padding: 3rem 1rem;
+            }
+
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <div class="container">
+            <h1>About Open Terminal</h1>
+            <p>Empowering Traders with Precision and Speed</p>
         </div>
     </div>
-</section>
 
-<a href="/" class="mt-6 btn btn-primary btn-lg mx-auto block text-center">Back to Home</a>
-{% endblock %}
+    <div class="container">
+        <div class="features-grid">
+            <div class="feature-card">
+                <h3>Realtime Watchlists</h3>
+                <p>Stay updated with live market data and customizable watchlists. Monitor your favorite securities in real-time with advanced filtering and sorting capabilities.</p>
+            </div>
+
+            <div class="feature-card">
+                <h3>Placing Orders from Watchlists</h3>
+                <p>Easily place trades directly from your real-time watchlists. Execute trades with a single click while monitoring market movements.</p>
+            </div>
+
+            <div class="feature-card">
+                <h3>Order Book & Holdings</h3>
+                <p>Manage your Order Book, Trade Book, Position Book, and Holdings efficiently. Get a comprehensive view of your trading activity and portfolio.</p>
+            </div>
+
+            <div class="feature-card">
+                <h3>Trailing Stoploss & MTM Square Off</h3>
+                <p>Automatically manage risk with trailing stoploss orders and MTM-based square off. Protect your profits and limit losses with advanced order types.</p>
+            </div>
+
+            <div class="feature-card">
+                <h3>Voice-Based Trading</h3>
+                <p>Trade seamlessly using our voice-enabled trading system. Execute orders hands-free with natural language commands.</p>
+            </div>
+
+            <div class="feature-card">
+                <h3>Keyboard-Based Orders</h3>
+                <p>Execute orders swiftly using keyboard shortcuts for faster trades. Optimize your trading workflow with quick access commands.</p>
+            </div>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="/" class="back-button">Back to Home</a>
+        </div>
+    </div>
+</body>
+</html>
