@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             try {
                 const decodedData = MarketDataDecoder.decode(event.data);
-                console.log('Received data for token:', decodedData.tokenString);
+                //console.log('Received data for token:', decodedData.tokenString);
                 
                 if (decodedData.tokenString === INDEX_TOKENS.NIFTY.token) {
                     updateNiftyData(decodedData);

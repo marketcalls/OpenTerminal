@@ -21,10 +21,10 @@ class BrokerService:
             
             # Prepare payload
             payload = self._prepare_order_payload(order_data)
-            print('Prepared payload:', payload)
+            #print('Prepared payload:', payload)
             # Prepare headers with provided tokens
             headers = self._prepare_headers(access_token, api_key)
-            print('Prepared headers:', headers)
+            #print('Prepared headers:', headers)
             # Send request
             conn.request("POST", PLACE_ORDER_ENDPOINT, payload, headers)
             
