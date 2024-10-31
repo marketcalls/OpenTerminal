@@ -107,10 +107,12 @@ const OrderModal = (function() {
 
     function validateQuantity(e) {
         const input = e.target;
-        const value = parseInt(input.value);
-        const minQty = parseInt(currentSymbol?.lotSize || 1);
-        const step = parseInt(currentSymbol?.lotSize || 1);
-
+        const isDerivative = ['NFO', 'MCX', 'CDS', 'BFO'].includes(currentSymbol.exchange);
+        
+        let value = parseInt(input.value);
+        let minQty = isDerivative ? 1 : (currentSymbol?.lotSize || 1);
+        let step = isDerivative ? 1 : (currentSymbol?.lotSize || 1);
+    
         if (isNaN(value) || value < minQty) {
             input.value = minQty;
         } else {
@@ -315,28 +317,12 @@ const OrderModal = (function() {
         const form = modal.querySelector('form');
         if (!form || !currentSymbol) return;
         console.log('Setting default values');
-
+    
         // Set hidden values
         form.querySelector('#form-symbol').value = currentSymbol.symbol;
         form.querySelector('#form-token').value = currentSymbol.token;
         form.querySelector('#form-exchange').value = currentSymbol.exchange;
-
-        // Set quantity with validation
-        const qtyInput = form.querySelector('[name="quantity"]');
-        if (qtyInput) {
-            qtyInput.value = currentSymbol.lotSize || 1;
-            qtyInput.setAttribute('min', currentSymbol.lotSize || 1);
-            qtyInput.setAttribute('step', currentSymbol.lotSize || 1);
-            updateTotalQuantity(qtyInput.value);
-        }
-
-        // Set price with validation
-        const priceInput = form.querySelector('[name="price"]');
-        if (priceInput) {
-            priceInput.value = formatPrice(currentSymbol.ltp || 0);
-            priceInput.setAttribute('step', currentSymbol.tickSize || 0.05);
-        }
-
+    
         // Set product type based on exchange
         const isEquity = ['NSE', 'BSE'].includes(currentSymbol.exchange);
         const defaultProduct = isEquity ? 'INTRADAY' : 'CARRYFORWARD';
@@ -345,13 +331,54 @@ const OrderModal = (function() {
             productInput.checked = true;
             updateActiveState(productInput);
         }
+    
+        // Initialize price controls
+        const priceInput = form.querySelector('[name="price"]');
+        const currentLTP = modal.querySelector('.current-ltp');
+        if (priceInput && currentSymbol.ltp) {
+            if (currentSymbol.ltp > 0) {
+                priceInput.value = formatPrice(currentSymbol.ltp);
+                if (currentLTP) {
+                    currentLTP.textContent = formatPrice(currentSymbol.ltp);
+                }
+            }
+            priceInput.setAttribute('step', currentSymbol.tickSize || 0.05);
+        }
+    
+        // Set quantity/lots
+        const qtyInput = form.querySelector('[name="quantity"]');
+        const qtyLabel = modal.querySelector('.quantity-label');
+        const totalQtyDiv = modal.querySelector('.total-quantity');
+        
+        if (qtyInput && qtyLabel && totalQtyDiv) {
+            const isDerivative = ['NFO', 'MCX', 'CDS', 'BFO'].includes(currentSymbol.exchange);
+            
+            if (isDerivative) {
+                // For derivatives, default to 1 lot
+                qtyInput.value = 1;
+                qtyInput.setAttribute('min', 1);
+                qtyInput.setAttribute('step', 1);
+                qtyLabel.textContent = 'Lots';
+                totalQtyDiv.classList.remove('hidden');
+                updateTotalQuantity(1);
+            } else {
+                // For equity, use actual quantity
+                qtyInput.value = currentSymbol.lotSize || 1;
+                qtyInput.setAttribute('min', currentSymbol.lotSize || 1);
+                qtyInput.setAttribute('step', currentSymbol.lotSize || 1);
+                qtyLabel.textContent = 'Quantity';
+                updateTotalQuantity(qtyInput.value);
+            }
+        }
     }
+    
 
     function adjustQuantity(direction) {
         const qtyInput = modal.querySelector('input[name="quantity"]');
         if (!qtyInput) return;
-
-        const step = parseInt(currentSymbol?.lotSize || 1);
+    
+        const isDerivative = ['NFO', 'MCX', 'CDS', 'BFO'].includes(currentSymbol.exchange);
+        const step = isDerivative ? 1 : (currentSymbol?.lotSize || 1);
         const newValue = parseInt(qtyInput.value || 0) + (direction * step);
         
         if (newValue >= step) {
@@ -375,11 +402,15 @@ const OrderModal = (function() {
     }
 
     function updateTotalQuantity(qty) {
-        const totalQty = parseInt(qty) * (currentSymbol?.lotSize || 1);
         const totalQtyElement = modal.querySelector('#total-qty');
-        if (totalQtyElement) {
-            totalQtyElement.textContent = totalQty.toLocaleString('en-IN');
-        }
+        if (!totalQtyElement) return;
+    
+        const lotSize = currentSymbol?.lotSize || 1;
+        const isDerivative = ['NFO', 'MCX', 'CDS', 'BFO'].includes(currentSymbol.exchange);
+        
+        const enteredQty = parseInt(qty) || 0;
+        const totalQty = isDerivative ? enteredQty * lotSize : enteredQty;
+        totalQtyElement.textContent = totalQty.toLocaleString('en-IN');
     }
 
     function updateActiveState(input) {
@@ -406,26 +437,32 @@ const OrderModal = (function() {
     
         try {
             const formData = new FormData(event.target);
+            const isDerivative = ['NFO', 'MCX', 'CDS', 'BFO'].includes(currentSymbol.exchange);
+            
+            let quantity = parseInt(formData.get('quantity'));
+            if (isDerivative) {
+                // For derivatives, multiply lots by lot size
+                //quantity = quantity * (currentSymbol.lotSize || 1);
+                quantity = quantity;
+                console.log(`Derivative order: ${quantity} (${formData.get('quantity')} lots × ${currentSymbol.lotSize} lot size)`);
+            }
+    
             const orderData = {
                 symbol: currentSymbol.symbol,
                 token: currentSymbol.token,
                 exchange: currentSymbol.exchange,
                 side: orderSide,
-                quantity: parseInt(formData.get('quantity')),
+                quantity: quantity,  // This will be lots * lotSize for derivatives
                 price: formData.get('ordertype') === 'MARKET' ? null : parseFloat(formData.get('price')),
                 ordertype: formData.get('ordertype'),
                 producttype: formData.get('producttype'),
                 variety: formData.get('variety') || 'NORMAL',
-                disclosedquantity: "0"
+                disclosedquantity: "0",
+                lot_size: isDerivative ? (currentSymbol.lotSize || 1) : 1  // Add lot_size to order data
             };
     
             if (orderData.variety === 'STOPLOSS' && formData.get('triggerprice')) {
                 orderData.triggerprice = parseFloat(formData.get('triggerprice'));
-            }
-    
-            // Validate order data
-            if (!validateOrderData(orderData)) {
-                return;
             }
     
             console.log('Order data prepared:', orderData);
