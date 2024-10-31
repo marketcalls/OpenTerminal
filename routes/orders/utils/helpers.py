@@ -14,7 +14,7 @@ def is_market_open() -> bool:
     now = datetime.now()
     # Example: Market hours 9:15 AM to 3:30 PM
     market_start = now.replace(hour=0, minute=00, second=0)
-    market_end = now.replace(hour=11, minute=59, second=0)
+    market_end = now.replace(hour=23, minute=59, second=0)
     return market_start <= now <= market_end
 
 def get_cached_token(user_id: str) -> Optional[Dict]:

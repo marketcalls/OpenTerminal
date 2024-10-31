@@ -1,5 +1,3 @@
-// static/js/modules/marketDataUpdater.js
-
 const MarketDataUpdater = {
     // Map to cache previous values for comparison
     previousValues: new Map(),
@@ -47,32 +45,84 @@ const MarketDataUpdater = {
         this.updateMarketStats(item, data);
         this.updateMarketDepth(item, data);
     },
+
+    calculatePriceChanges(currentPrice, closePrice) {
+        try {
+            if (!currentPrice || !closePrice || closePrice === 0) {
+                return {
+                    change: '0.00',
+                    changePercent: '0.00',
+                    changeClass: ''
+                };
+            }
+
+            const change = currentPrice - closePrice;
+            const changePercent = (change / closePrice) * 100;
+
+            return {
+                change: change.toFixed(2),
+                changePercent: changePercent.toFixed(2),
+                changeClass: change >= 0 ? 'text-green-500' : 'text-red-500'
+            };
+        } catch (error) {
+            console.error('Error calculating price changes:', error);
+            return {
+                change: '0.00',
+                changePercent: '0.00',
+                changeClass: ''
+            };
+        }
+    },
     
     updatePriceInfo(item, data) {
-        const ltpElement = item.querySelector('.ltp');
-        const changeElement = item.querySelector('.change');
+        const ltpElement = item.querySelector('.ltp, .current-price, .current-ltp');
+        const changeElement = item.querySelector('.change, .price-change');
         const changePercentElement = item.querySelector('.change-percent');
         
+        // Get previous LTP for flash animation
+        const previousLTP = this.previousValues.get(data.tokenString)?.lastTradedPrice;
+        const priceChangeClass = this.getPriceChangeClass(data.lastTradedPrice, previousLTP);
+
+        // Update LTP with flash animation
         if (ltpElement) {
-            const previousValue = this.previousValues.get(data.tokenString)?.lastTradedPrice;
-            const priceChangeClass = this.getPriceChangeClass(data.lastTradedPrice, previousValue);
-            
             ltpElement.textContent = this.formatPrice(data.lastTradedPrice);
-            ltpElement.className = `ltp ${priceChangeClass}`;
+            // Preserve existing class names based on context
+            const baseClass = ltpElement.classList.contains('current-ltp') ? 'current-ltp' : 
+                            ltpElement.classList.contains('current-price') ? 'current-price' : 'ltp';
+            ltpElement.className = `${baseClass} font-medium ${priceChangeClass}`;
+            
+            // Add flash animation
+            if (priceChangeClass) {
+                ltpElement.classList.add('flash-animation');
+                setTimeout(() => {
+                    ltpElement.classList.remove('flash-animation');
+                }, 1000);
+            }
         }
-        
-        const change = data.lastTradedPrice - data.closePrice;
-        const changePercent = (change / data.closePrice) * 100;
-        const changeClass = change >= 0 ? 'text-green-500' : 'text-red-500';
-        
+
+        // Calculate price changes
+        const { change, changePercent, changeClass } = this.calculatePriceChanges(
+            data.lastTradedPrice,
+            data.closePrice
+        );
+
+        // Update change value
         if (changeElement) {
-            changeElement.textContent = this.formatPrice(change);
-            changeElement.className = `change ${changeClass}`;
-            changeElement.style.display = this.settings.show_ltp_change ? 'inline' : 'none';
+            const isModal = changeElement.classList.contains('price-change');
+            // Format differently for modal and watchlist
+            const displayText = isModal ? `${change} (${changePercent}%)` : change;
+            changeElement.textContent = displayText;
+            changeElement.className = `${isModal ? 'price-change' : 'change'} ${changeClass}`;
+
+            // Only apply visibility settings if not in modal
+            if (!item.closest('#order-modal')) {
+                changeElement.style.display = this.settings.show_ltp_change ? 'inline' : 'none';
+            }
         }
-        
-        if (changePercentElement) {
-            changePercentElement.textContent = `(${changePercent.toFixed(2)}%)`;
+
+        // Update change percentage (only for watchlist, not modal)
+        if (changePercentElement && !item.closest('#order-modal')) {
+            changePercentElement.textContent = `(${changePercent}%)`;
             changePercentElement.className = `change-percent ${changeClass}`;
             changePercentElement.style.display = this.settings.show_ltp_change_percent ? 'inline' : 'none';
         }
@@ -92,49 +142,17 @@ const MarketDataUpdater = {
     },
 
     updateMarketDepth(item, data) {
-        // First update the OHLC values
-        const formatPrice = (price) => price === '--' ? '--' : parseFloat(price).toFixed(2);
-        
-        // Update OHLC values
-        const ohlcValues = {
-            'open': data.openPrice,
-            'high': data.highPrice,
-            'low': data.lowPrice,
-            'close': data.closePrice
-        };
+        // Skip if no market depth data available
+        if (!data.bestBids || !data.bestAsks) return;
 
-        Object.entries(ohlcValues).forEach(([key, value]) => {
-            const element = item.querySelector(`.${key}`);
-            if (element) {
-                element.textContent = formatPrice(value);
-            }
-        });
-
-        // Update Volume and Total Buy/Sell quantities
-        const volumeElement = item.querySelector('.volume');
-        if (volumeElement) {
-            volumeElement.textContent = this.formatVolume(data.volTraded);
-        }
-
-        const totalBuyElement = item.querySelector('.total-buy-qty');
-        if (totalBuyElement) {
-            totalBuyElement.textContent = this.formatNumber(data.totalBuyQty);
-        }
-
-        const totalSellElement = item.querySelector('.total-sell-qty');
-        if (totalSellElement) {
-            totalSellElement.textContent = this.formatNumber(data.totalSellQty);
-        }
-
-        // Update market depth data
         const depthElement = item.querySelector('.depth-data');
-        if (!depthElement || !data.bestBids || !data.bestAsks) return;
+        if (!depthElement) return;
 
-        let html = '';
         // Create arrays of exactly 5 elements each, padding with empty values if needed
         const bids = [...data.bestBids, ...Array(5)].slice(0, 5);
         const asks = [...data.bestAsks, ...Array(5)].slice(0, 5);
 
+        let html = '';
         for (let i = 0; i < 5; i++) {
             const bid = bids[i] || { qty: '--', numOrders: '--', price: '--' };
             const ask = asks[i] || { qty: '--', numOrders: '--', price: '--' };
@@ -144,9 +162,9 @@ const MarketDataUpdater = {
                     <td class="text-right py-0.5 bid-qty">${this.formatNumber(bid.qty)}</td>
                     <td class="text-right py-0.5 bid-orders">${bid.numOrders}</td>
                     <td class="text-right py-0.5 text-green-500 font-medium cursor-pointer hover:opacity-80 bid-price" 
-                        data-price="${bid.price !== '--' ? bid.price : ''}">${formatPrice(bid.price)}</td>
+                        data-price="${bid.price !== '--' ? bid.price : ''}">${this.formatPrice(bid.price)}</td>
                     <td class="text-right py-0.5 text-red-500 font-medium cursor-pointer hover:opacity-80 ask-price"
-                        data-price="${ask.price !== '--' ? ask.price : ''}">${formatPrice(ask.price)}</td>
+                        data-price="${ask.price !== '--' ? ask.price : ''}">${this.formatPrice(ask.price)}</td>
                     <td class="text-right py-0.5 ask-orders">${ask.numOrders}</td>
                     <td class="text-right py-0.5 ask-qty">${this.formatNumber(ask.qty)}</td>
                 </tr>
@@ -169,41 +187,75 @@ const MarketDataUpdater = {
         });
     },
 
-
     updateOrderModal(data) {
         const modal = document.getElementById('order-modal');
         if (!modal) return;
 
-        // Update current price
-        const priceElement = modal.querySelector('.current-price');
-        if (priceElement) {
-            priceElement.textContent = this.formatPrice(data.lastTradedPrice);
+        // Update current price displays in both header and form
+        ['current-price', 'current-ltp'].forEach(className => {
+            const element = modal.querySelector(`.${className}`);
+            if (element) {
+                const previousPrice = this.previousValues.get(data.tokenString)?.lastTradedPrice;
+                const priceChangeClass = this.getPriceChangeClass(data.lastTradedPrice, previousPrice);
+                
+                element.textContent = this.formatPrice(data.lastTradedPrice);
+                element.className = `${className} font-medium ${priceChangeClass}`;
+                
+                // Add flash animation
+                if (priceChangeClass) {
+                    element.classList.add('flash-animation');
+                    setTimeout(() => {
+                        element.classList.remove('flash-animation');
+                    }, 1000);
+                }
+            }
+        });
+
+        // Calculate and update price changes
+        const { change, changePercent, changeClass } = this.calculatePriceChanges(
+            data.lastTradedPrice,
+            data.closePrice
+        );
+
+        // Update price change in the modal header
+        const priceChangeElement = modal.querySelector('.price-change');
+        if (priceChangeElement) {
+            priceChangeElement.textContent = `${change} (${changePercent}%)`;
+            priceChangeElement.className = `price-change ${changeClass}`;
         }
 
         // Update OHLC values
-        const ohlcFields = ['open', 'high', 'low', 'close'];
-        ohlcFields.forEach(field => {
-            const element = modal.querySelector(`.ohlc-${field}`);
+        const ohlcValues = {
+            open: data.openPrice,
+            high: data.highPrice,
+            low: data.lowPrice,
+            close: data.closePrice
+        };
+
+        Object.entries(ohlcValues).forEach(([key, value]) => {
+            const element = modal.querySelector(`.${key}`);
             if (element) {
-                element.textContent = this.formatPrice(data[`${field}Price`]);
+                element.textContent = this.formatPrice(value);
             }
         });
 
         // Update volume and total quantities
-        const volumeElement = modal.querySelector('.depth-volume');
+        const volumeElement = modal.querySelector('.volume');
         if (volumeElement) {
             volumeElement.textContent = this.formatVolume(data.volTraded);
         }
 
-        const totalBuyElement = modal.querySelector('.total-buy');
-        if (totalBuyElement) {
-            totalBuyElement.textContent = this.formatNumber(data.totalBuyQty);
-        }
+        const volumeStats = {
+            'total-buy': data.totalBuyQty,
+            'total-sell': data.totalSellQty
+        };
 
-        const totalSellElement = modal.querySelector('.total-sell');
-        if (totalSellElement) {
-            totalSellElement.textContent = this.formatNumber(data.totalSellQty);
-        }
+        Object.entries(volumeStats).forEach(([key, value]) => {
+            const element = modal.querySelector(`.${key}`);
+            if (element) {
+                element.textContent = this.formatNumber(value);
+            }
+        });
 
         // Update market depth if visible
         const depthContainer = modal.querySelector('#order-market-depth:not(.hidden)');
@@ -227,7 +279,7 @@ const MarketDataUpdater = {
             lotSize: parseInt(element.dataset.lotSize) || 1,
             tickSize: parseFloat(element.dataset.tickSize) || 0.05,
             instrumentType: element.dataset.instrumentType,
-            ltp: parseFloat(element.querySelector('.ltp')?.textContent) || 0
+            ltp: parseFloat(element.querySelector('.ltp, .current-ltp')?.textContent) || 0
         };
     },
 
@@ -257,7 +309,8 @@ const MarketDataUpdater = {
     },
 
     formatPrice(price) {
-        return price === '--' ? '--' : parseFloat(price).toFixed(2);
+        if (price === '--' || isNaN(price)) return '--';
+        return parseFloat(price).toFixed(2);
     },
 
     formatNumber(num) {
@@ -266,9 +319,8 @@ const MarketDataUpdater = {
     },
 
     getPriceChangeClass(currentPrice, previousPrice) {
-        if (!previousPrice) return '';
-        return currentPrice > previousPrice ? 'text-green-500' : 
-               currentPrice < previousPrice ? 'text-red-500' : '';
+        if (!previousPrice || currentPrice === previousPrice) return '';
+        return currentPrice > previousPrice ? 'text-green-500' : 'text-red-500';
     }
 };
 

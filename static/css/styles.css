@@ -1,0 +1,173 @@
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: hsl(var(--b3));
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: hsl(var(--bc / 0.3));
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--bc / 0.5));
+}
+
+/* Ensure consistent height */
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Main content area scrolling */
+.content-area {
+    height: calc(100vh - 4rem); /* Adjust based on your navbar height */
+    overflow-y: auto;
+}
+
+/* Price change animations */
+@keyframes price-flash {
+    0% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+@keyframes price-flash-up {
+    0% { 
+        opacity: 0.5;
+        background-color: rgba(34, 197, 94, 0.1); /* green-500 with opacity */
+    }
+    100% { 
+        opacity: 1;
+        background-color: transparent;
+    }
+}
+
+@keyframes price-flash-down {
+    0% { 
+        opacity: 0.5;
+        background-color: rgba(239, 68, 68, 0.1); /* red-500 with opacity */
+    }
+    100% { 
+        opacity: 1;
+        background-color: transparent;
+    }
+}
+
+/* Animation classes */
+.flash-animation {
+    animation: price-flash 1s ease-out;
+    border-radius: 4px;
+    padding: 0 4px;
+    margin: 0 -4px;
+}
+
+.text-green-500.flash-animation {
+    animation: price-flash-up 1s ease-out;
+}
+
+.text-red-500.flash-animation {
+    animation: price-flash-down 1s ease-out;
+}
+
+/* Smooth transitions for price changes */
+.ltp, .current-price, .current-ltp, .change, .change-percent, .price-change {
+    transition: color 0.2s ease-in-out;
+}
+
+/* Market depth animations */
+.market-depth {
+    transition: all 0.2s ease-in-out;
+    max-height: 500px;
+    opacity: 1;
+}
+
+.market-depth.hidden {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+}
+
+/* Price change display styles */
+.change, .change-percent, .price-change {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.2px;
+}
+
+/* Button hover effects */
+.price-adjust {
+    transition: all 0.15s ease-in-out;
+}
+
+.price-adjust:active {
+    transform: scale(0.95);
+}
+
+/* Market depth icon rotation */
+.market-depth-icon {
+    transition: transform 0.2s ease-in-out;
+}
+
+.market-depth:not(.hidden) + button .market-depth-icon {
+    transform: rotate(180deg);
+}
+
+/* Improve readability of numbers */
+.ltp, .current-price, .current-ltp {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.3px;
+    font-weight: 500;
+}
+
+/* Optional: Add subtle hover effect on watchlist items */
+.watchlist-item {
+    transition: background-color 0.2s ease-in-out;
+}
+
+.watchlist-item:hover {
+    background-color: hsl(var(--b2));
+}
+
+/* Price info styles */
+.price-info {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.price-info .ltp {
+    font-variant-numeric: tabular-nums;
+}
+
+.price-info .change,
+.price-info .change-percent {
+    font-variant-numeric: tabular-nums;
+    display: none; /* Initially hidden, will be shown based on settings */
+}
+
+/* Show elements when settings are enabled */
+.price-info[data-show-change="true"] .change,
+.price-info[data-show-change-percent="true"] .change-percent {
+    display: inline;
+}
+
+/* Optional: Add hover effect for the whole item */
+.watchlist-item {
+    transition: background-color 0.2s ease-in-out;
+}
+
+.watchlist-item:hover .order-buttons {
+    display: flex;
+    gap: 0.25rem;
+}
+
+/* Order buttons styling */
+.buy-btn, .sell-btn {
+    min-height: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.5rem;
+}

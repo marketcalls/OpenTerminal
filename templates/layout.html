@@ -6,6 +6,7 @@
     <title>{{ title if title else 'Open Terminal' }}</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet" type="text/css" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <script>
         tailwind.config = {
@@ -18,40 +19,8 @@
             }
         }
     </script>
-    <style>
-        /* Custom scrollbar styles */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: hsl(var(--b3));
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: hsl(var(--bc / 0.3));
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: hsl(var(--bc / 0.5));
-        }
-
-        /* Ensure consistent height */
-        html, body {
-            height: 100%;
-            overflow: hidden;
-        }
-
-        /* Main content area scrolling */
-        .content-area {
-            height: calc(100vh - 4rem); /* Adjust based on your navbar height */
-            overflow-y: auto;
-        }
-    </style>
 </head>
+
 <body class="bg-base-100 text-base-content">
     <div class="drawer drawer-mobile">
         <!-- Drawer toggle for mobile -->

@@ -1,22 +1,71 @@
-<div class="flex justify-between items-center p-3 hover:bg-base-200 cursor-pointer" onclick="toggleDepth('depth-${token}')">
-    <div class="flex flex-col">
-        <span class="font-medium">${symbol}</span>
-        <span class="text-xs text-base-content/70">${exchSeg}</span>
-    </div>
-    <div class="flex items-center gap-4">
-        <div class="text-right">
-            <div class="font-medium ltp">--</div>
-            <div class="flex items-center gap-1 text-xs">
-                <span class="change">0.00</span>
-                <span class="change-percent">(0.00%)</span>
+<div class="watchlist-item" data-token="${token}" data-symbol="${symbol}" data-exch-seg="${exchSeg}" data-exch-type="${exchType}" data-lot-size="${lotSize}" data-tick-size="${tickSize}" data-instrument-type="${instrumentType}">
+    <div class="flex justify-between items-center p-3 hover:bg-base-200 cursor-pointer symbol-header" onclick="toggleDepth('depth-${token}')">
+        <div class="symbol-info">
+            <div class="flex items-center gap-2">
+                <span class="symbol-name font-medium">${symbol}</span>
+                <span class="exchange-name text-xs text-base-content/70">${exchSeg}</span>
+            </div>
+            <div class="price-info flex items-center gap-1 text-sm">
+                <span class="ltp font-medium">--</span>
+                <span class="change text-xs">0.00</span>
+                <span class="change-percent text-xs">(0.00%)</span>
             </div>
         </div>
-        <button class="btn btn-ghost btn-xs remove-item-btn" 
-                data-item-id="${id}"
-                onclick="event.stopPropagation(); WatchlistManager.removeSymbol(event)">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-            </svg>
-        </button>
+        <div class="flex items-center gap-2">
+            <!-- Buy/Sell buttons (initially hidden) -->
+            <div class="order-buttons hidden">
+                <button class="btn btn-xs buy-btn bg-green-500 hover:bg-green-600 border-0 text-white">
+                    B
+                </button>
+                <button class="btn btn-xs sell-btn bg-red-500 hover:bg-red-600 border-0 text-white">
+                    S
+                </button>
+            </div>
+            
+            <button class="btn btn-ghost btn-xs remove-item-btn" 
+                    data-item-id="${id}"
+                    onclick="event.stopPropagation(); WatchlistManager.removeSymbol(event)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Market Depth Panel (initially hidden) -->
+    <div id="depth-${token}" class="market-depth hidden">
+        <!-- Market Stats -->
+        <div class="grid grid-cols-4 gap-2 text-xs border-t border-b border-base-content/10 py-2 px-3">
+            <div>O: <span class="open">--</span></div>
+            <div>H: <span class="high">--</span></div>
+            <div>L: <span class="low">--</span></div>
+            <div>C: <span class="close">--</span></div>
+        </div>
+
+        <!-- Depth Table -->
+        <table class="w-full text-xs">
+            <thead class="text-base-content/70">
+                <tr>
+                    <th class="py-1 text-right">Qty</th>
+                    <th class="py-1 text-right">Orders</th>
+                    <th class="py-1 text-right text-green-500">Bid</th>
+                    <th class="py-1 text-right text-red-500">Ask</th>
+                    <th class="py-1 text-right">Orders</th>
+                    <th class="py-1 text-right">Qty</th>
+                </tr>
+            </thead>
+            <tbody class="depth-data">
+                <!-- Depth data will be populated by JS -->
+            </tbody>
+        </table>
+
+        <!-- Volume Stats -->
+        <div class="flex justify-between text-xs text-base-content/70 py-2 px-3 border-t border-base-content/10">
+            <div>Vol: <span class="volume">--</span></div>
+            <div>
+                Buy: <span class="total-buy-qty">--</span> | 
+                Sell: <span class="total-sell-qty">--</span>
+            </div>
+        </div>
     </div>
 </div>
