@@ -36,14 +36,41 @@ class OrderValidator:
         order_type = data.get('ordertype')
         variety = data.get('variety', REGULAR)
 
+        # Validate order type based on variety
         if variety == STOPLOSS:
+            if order_type not in [SL_MARKET, SL_LIMIT]:
+                raise ValueError(f"Invalid order type {order_type} for STOPLOSS orders")
+
             if 'triggerprice' not in data:
                 raise ValueError("Trigger price required for stop loss orders")
-            if not self._is_valid_price(data['triggerprice']):
+            try:
+                trigger_price = float(data['triggerprice'])
+                if trigger_price <= 0:
+                    raise ValueError("Trigger price must be greater than 0")
+
+                if order_type == SL_LIMIT:
+                    price = float(data.get('price', 0))
+                    if price <= 0:
+                        raise ValueError("Price is required for STOPLOSS_LIMIT orders")
+
+                    # For BUY STOPLOSS, trigger price should be lower than price
+                    if data['side'] == 'BUY':
+                        if price <= trigger_price:
+                            raise ValueError("For Buy STOPLOSS, trigger price must be less than price")
+                    # For SELL STOPLOSS, trigger price should be higher than price
+                    else:
+                        if price >= trigger_price:
+                            raise ValueError("For Sell STOPLOSS, trigger price must be greater than price")
+
+            except (ValueError, TypeError):
                 raise ValueError("Invalid trigger price")
 
-        if order_type == LIMIT and not self._is_valid_price(data.get('price')):
-            raise ValueError("Invalid price for limit order")
+        elif variety == REGULAR:
+            if order_type not in [MARKET, LIMIT]:
+                raise ValueError(f"Invalid order type {order_type} for REGULAR orders")
+
+            if order_type == LIMIT and not self._is_valid_price(data.get('price')):
+                raise ValueError("Invalid price for limit order")
 
     def _validate_exchange(self, data: Dict) -> None:
         """Validate exchange and segment specific rules"""

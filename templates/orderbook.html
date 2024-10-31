@@ -15,7 +15,7 @@
                     <th class="px-4 py-2 text-center">Price</th>
                     <th class="px-4 py-2 text-center">Trigger Price</th>
                     <th class="px-4 py-2 text-center">Quantity</th>
-                    <th class="px-4 py-2 text-center">Order Status</th>
+                    <th class="px-4 py-2 text-center min-w-[120px]">Order Status</th>
                     <th class="px-4 py-2 text-center">Update Time</th>
                 </tr>
             </thead>
@@ -34,10 +34,11 @@
                     <td class="px-4 py-2 text-center">{{ order.price | float | round(2) }}</td>
                     <td class="px-4 py-2 text-center">{{ order.triggerprice | float | round(2) }}</td>
                     <td class="px-4 py-2 text-center">{{ order.quantity }}</td>
-                    <td class="px-4 py-2 text-center">
-                        <span class="badge badge-outline 
+                    <td class="px-4 py-2 text-center whitespace-nowrap">
+                        <span class="badge badge-outline min-w-[110px] 
                             {% if order.orderstatus == 'complete' %} badge-success 
-                            {% elif order.orderstatus == 'open' %} badge-info 
+                            {% elif order.orderstatus == 'open' %} badge-info
+                            {% elif order.orderstatus == 'trigger pending' %} badge-info  
                             {% elif order.orderstatus == 'rejected' %} badge-error 
                             {% endif %}">
                             {{ order.orderstatus }}

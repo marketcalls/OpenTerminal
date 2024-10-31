@@ -80,15 +80,34 @@ class OrderService:
         """Preprocess order data before validation"""
         processed_data = order_data.copy()
 
-        # Handle order types
-        if processed_data.get('ordertype') == 'MARKET':
-            processed_data['price'] = '0'
-            processed_data['triggerprice'] = '0'
-        elif processed_data.get('ordertype') == 'LIMIT':
-            if processed_data.get('price') is None or processed_data.get('price') == '0':
-                raise ValueError("Price is required for LIMIT orders")
-            processed_data['price'] = str(float(processed_data['price']))
-            processed_data['triggerprice'] = '0'
+        # Handle variety and order types
+        variety = processed_data.get('variety', 'NORMAL')
+        original_order_type = processed_data.get('ordertype')
+
+        # Handle STOPLOSS variety
+        if variety == 'STOPLOSS':
+            if original_order_type == 'MARKET':
+                processed_data['ordertype'] = 'STOPLOSS_MARKET'
+                processed_data['price'] = '0'
+            elif original_order_type == 'LIMIT':
+                processed_data['ordertype'] = 'STOPLOSS_LIMIT'
+                if processed_data.get('price') is None or processed_data.get('price') == '0':
+                    raise ValueError("Price is required for STOPLOSS_LIMIT orders")
+                processed_data['price'] = str(float(processed_data['price']))
+                # Handle trigger price
+                if not processed_data.get('triggerprice'):
+                    raise ValueError("Trigger price is required for STOPLOSS orders")
+                processed_data['triggerprice'] = str(float(processed_data['triggerprice']))
+        else:
+            # Handle regular orders
+            if original_order_type == 'MARKET':
+                processed_data['price'] = '0'
+                processed_data['triggerprice'] = '0'
+            elif original_order_type == 'LIMIT':
+                if processed_data.get('price') is None or processed_data.get('price') == '0':
+                    raise ValueError("Price is required for LIMIT orders")
+                processed_data['price'] = str(float(processed_data['price']))
+                processed_data['triggerprice'] = '0'
 
         # Convert quantity to string
         try:
@@ -99,13 +118,11 @@ class OrderService:
         except (TypeError, ValueError):
             raise ValueError("Invalid quantity value")
 
-        # Handle empty values with defaults
-        processed_data['variety'] = processed_data.get('variety', 'NORMAL')
+        # Handle other defaults
+        processed_data['variety'] = variety
         processed_data['disclosedquantity'] = processed_data.get('disclosedquantity', '0')
-        
-        if processed_data['variety'] == 'STOPLOSS' and not processed_data.get('triggerprice'):
-            raise ValueError("Trigger price is required for STOPLOSS orders")
 
+        print(f"Preprocessed order data: {processed_data}")
         return processed_data
 
     def _get_auth_data(self, client_id: str) -> Optional[Dict]:
