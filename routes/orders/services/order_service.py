@@ -25,6 +25,7 @@ class OrderService:
 
             # Get authentication tokens
             auth_data = self._get_auth_data(client_id)
+            
             if not auth_data:
                 raise ValueError("Invalid or expired session")
 
@@ -111,14 +112,38 @@ class OrderService:
     def _get_auth_data(self, client_id: str) -> Optional[Dict]:
         """Get authentication data from Redis"""
         try:
+            print(f"Getting auth data for client: {client_id}")
             user_data = redis_client.hgetall(f"user:{client_id}")
             if not user_data:
+                print("No user data found in Redis")
                 return None
 
-            return {
-                'access_token': user_data.get(b'access_token', b'').decode('utf-8'),
-                'api_key': user_data.get(b'api_key', b'').decode('utf-8')
+            # Convert bytes to string for all values
+            user_data = {k.decode('utf-8') if isinstance(k, bytes) else k: 
+                        v.decode('utf-8') if isinstance(v, bytes) else v 
+                        for k, v in user_data.items()}
+
+            # print("User data from Redis:", user_data)
+
+            # Get the required tokens
+            access_token = user_data.get('access_token', '')
+            api_key = user_data.get('api_key', '')
+
+            # Additional validation
+            if not access_token or not api_key:
+                print("Missing required tokens")
+                print(f"Access token: {access_token}")
+                print(f"API key: {api_key}")
+                return None
+
+            auth_data = {
+                'access_token': access_token,
+                'api_key': api_key
             }
+
+            #print("Prepared auth data:", auth_data)
+            return auth_data
+
         except Exception as e:
             print(f"Error getting auth data from Redis: {str(e)}")
             return None

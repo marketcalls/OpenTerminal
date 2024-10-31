@@ -21,10 +21,10 @@ class BrokerService:
             
             # Prepare payload
             payload = self._prepare_order_payload(order_data)
-            
+            print('Prepared payload:', payload)
             # Prepare headers with provided tokens
             headers = self._prepare_headers(access_token, api_key)
-            
+            print('Prepared headers:', headers)
             # Send request
             conn.request("POST", PLACE_ORDER_ENDPOINT, payload, headers)
             
@@ -58,7 +58,7 @@ class BrokerService:
         # Add stop loss specific fields
         if order_data.get("variety") == "STOPLOSS":
             payload["triggerprice"] = str(order_data.get("triggerprice", "0"))
-        print('Prepared payload:', payload)
+        
         return json.dumps(payload)
 
     def _prepare_headers(self, access_token: str, api_key: str) -> Dict:
