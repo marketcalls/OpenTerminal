@@ -82,7 +82,8 @@
                                         data-token="{{ item.token }}"
                                         data-symbol="{{ item.symbol }}"
                                         data-exch-seg="{{ item.exch_seg }}"
-                                        data-exch-type="{{ {'NSE': 1, 'BSE': 3, 'MCX': 5}[item.exch_seg] }}"
+                                        data-exch-type="{{ {'NSE': 1, 'BSE': 3, 'NFO': 2, 'BFO': 4, 'MCX': 5, 'CDS': 13, 'NCDEX': 7}[item.exch_seg] }}"
+                                        
                                         data-lot-size="{{ item.lotsize }}"
                                         data-tick-size="{{ item.tick_size }}"
                                         data-instrument-type="{{ item.instrumenttype }}">
