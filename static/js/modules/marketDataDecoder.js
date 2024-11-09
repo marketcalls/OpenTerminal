@@ -1,6 +1,11 @@
 // static/js/modules/marketDataDecoder.js
 
 const MarketDataDecoder = {
+    getPriceDivisor(exchangeType) {
+        // For CDS (Currency Derivatives), use 10000000.0
+        return exchangeType === 13 ? 10000000.0 : 100;
+    },
+
     decode(binaryData) {
         const dataView = new DataView(binaryData);
         let offset = 0;
@@ -11,6 +16,9 @@ const MarketDataDecoder = {
 
         const exchangeType = dataView.getInt8(offset);
         offset += 1;
+
+        // Get the appropriate price divisor based on exchange type
+        const priceDivisor = this.getPriceDivisor(exchangeType);
 
         // Read token (25 bytes)
         const tokenString = this.decodeToken(dataView, offset);
@@ -25,7 +33,7 @@ const MarketDataDecoder = {
         offset += 8;
 
         // Read last traded price (8 bytes)
-        const lastTradedPrice = Number(dataView.getBigInt64(offset, true)) / 100;
+        const lastTradedPrice = Number(dataView.getBigInt64(offset, true)) / priceDivisor;
         offset += 8;
 
         // Read last traded quantity (8 bytes)
@@ -33,7 +41,7 @@ const MarketDataDecoder = {
         offset += 8;
 
         // Read average traded price (8 bytes)
-        const averageTradedPrice = Number(dataView.getBigInt64(offset, true)) / 100;
+        const averageTradedPrice = Number(dataView.getBigInt64(offset, true)) / priceDivisor;
         offset += 8;
 
         // Read volume traded (8 bytes)
@@ -49,19 +57,19 @@ const MarketDataDecoder = {
         offset += 8;
 
         // Read open price (8 bytes)
-        const openPrice = Number(dataView.getBigInt64(offset, true)) / 100;
+        const openPrice = Number(dataView.getBigInt64(offset, true)) / priceDivisor;
         offset += 8;
 
         // Read high price (8 bytes)
-        const highPrice = Number(dataView.getBigInt64(offset, true)) / 100;
+        const highPrice = Number(dataView.getBigInt64(offset, true)) / priceDivisor;
         offset += 8;
 
         // Read low price (8 bytes)
-        const lowPrice = Number(dataView.getBigInt64(offset, true)) / 100;
+        const lowPrice = Number(dataView.getBigInt64(offset, true)) / priceDivisor;
         offset += 8;
 
         // Read close price (8 bytes)
-        const closePrice = Number(dataView.getBigInt64(offset, true)) / 100;
+        const closePrice = Number(dataView.getBigInt64(offset, true)) / priceDivisor;
         offset += 8;
 
         if (subscriptionMode === 3) {
@@ -77,7 +85,7 @@ const MarketDataDecoder = {
                 const quantity = Number(dataView.getBigInt64(offset, true));
                 offset += 8;
 
-                const price = Number(dataView.getBigInt64(offset, true)) / 100;
+                const price = Number(dataView.getBigInt64(offset, true)) / priceDivisor;
                 offset += 8;
 
                 const orders = dataView.getInt16(offset, true);
