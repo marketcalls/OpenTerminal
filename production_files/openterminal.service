@@ -1,0 +1,14 @@
+# /etc/systemd/system/openterminal.service
+[Unit]
+Description=Gunicorn instance to serve OpenTerminal Flask app
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/python/openterminal
+Environment="PATH=/var/python/venv/bin"
+
+ExecStart=/var/python/venv/bin/python -m gunicorn --workers 4 --bind unix:/var/python/openterminal/openterminal.sock "app:create_app()"
+[Install]
+WantedBy=multi-user.target

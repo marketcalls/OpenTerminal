@@ -1,11 +1,10 @@
-# routes/auth.py
-
-from flask import Blueprint, render_template, redirect, url_for, flash, request, session
+from flask import Blueprint, render_template, redirect, url_for, flash, request, session, current_app
 from extensions import db, redis_client
 from models import User, Watchlist, WatchlistItem, Instrument
 import http.client
 import json
-from datetime import datetime, timedelta  # Add this import
+from datetime import datetime, timedelta
+import sys
 
 # Define the blueprint for authentication-related routes
 auth_bp = Blueprint('auth', __name__)
@@ -13,21 +12,24 @@ auth_bp = Blueprint('auth', __name__)
 # Store user details in Redis
 def store_user_in_redis(user):
     """Updated to include token expiry and better structure"""
-    from datetime import datetime, timedelta
-    
-    # Calculate token expiry (24 hours from now)
-    token_expiry = (datetime.now() + timedelta(days=1)).timestamp()
-    
-    redis_client.hset(f"user:{user.client_id}", mapping={
-        "username": user.username,
-        "client_id": user.client_id,
-        "api_key": user.api_key,
-        "access_token": user.access_token,
-        "feed_token": user.feed_token,
-        "token_expiry": str(token_expiry)
-    })
-    # Set expiry for the entire hash
-    redis_client.expire(f"user:{user.client_id}", 86400)  # 24 hours
+    try:
+        # Calculate token expiry (24 hours from now)
+        token_expiry = (datetime.now() + timedelta(days=1)).timestamp()
+        
+        redis_client.hset(f"user:{user.client_id}", mapping={
+            "username": user.username,
+            "client_id": user.client_id,
+            "api_key": user.api_key,
+            "access_token": user.access_token,
+            "feed_token": user.feed_token,
+            "token_expiry": str(token_expiry)
+        })
+        # Set expiry for the entire hash
+        redis_client.expire(f"user:{user.client_id}", 86400)  # 24 hours
+        return True
+    except Exception as e:
+        current_app.logger.error(f"Redis store error: {str(e)}")
+        return False
 
 # Update store_watchlist_in_redis function
 def store_watchlist_in_redis(watchlist, items, client_id=None):
@@ -74,21 +76,24 @@ def store_watchlist_in_redis(watchlist, items, client_id=None):
             )
         return True
     except Exception as e:
-        print(f"Error storing watchlist in Redis: {str(e)}")
+        current_app.logger.error(f"Error storing watchlist in Redis: {str(e)}")
         return False
 
 def remove_user_from_redis(client_id):
     """Updated to clean up all user-related data"""
-    keys_to_delete = [
-        f"user:{client_id}",
-        f"user:{client_id}:tokens",
-        f"user:{client_id}:watchlists"
-    ]
-    for key in keys_to_delete:
-        redis_client.delete(key)
+    try:
+        keys_to_delete = [
+            f"user:{client_id}",
+            f"user:{client_id}:tokens",
+            f"user:{client_id}:watchlists"
+        ]
+        for key in keys_to_delete:
+            redis_client.delete(key)
+        return True
+    except Exception as e:
+        current_app.logger.error(f"Error removing user from Redis: {str(e)}")
+        return False
 
-# Register route with default watchlist and symbol
-# Update the register route to pass client_id
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -143,39 +148,38 @@ def register():
 
         except Exception as e:
             db.session.rollback()
-            print(f"Registration error: {str(e)}")
+            current_app.logger.error(f"Registration error: {str(e)}")
             flash('Error during registration. Please try again.', 'danger')
             return render_template('register.html')
 
     return render_template('register.html')
 
-# Login route
-# Login route with WebSocket token handling and improved error management
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
+    current_app.logger.debug("=== Login Route Accessed ===")
+    current_app.logger.debug(f"Method: {request.method}")
+    current_app.logger.debug(f"Headers: {dict(request.headers)}")
+    
     if request.method == 'POST':
-        client_id = request.form['client_id']
-        pin = request.form['pin']
-        totp = request.form['totp']
-
-        # Find the user in the database
-        user = User.query.filter_by(client_id=client_id).first()
-
-        if not user:
-            flash('User not found. Please register first.', 'danger')
-            return render_template('login.html')
-
         try:
+            current_app.logger.debug("Processing POST request")
+            current_app.logger.debug(f"Form data: {dict(request.form)}")
+            
+            client_id = request.form['client_id']
+            pin = request.form['pin']
+            totp = request.form['totp']
+
+            # Find the user in the database
+            user = User.query.filter_by(client_id=client_id).first()
+            
+            if not user:
+                current_app.logger.warning(f"User not found: {client_id}")
+                flash('User not found. Please register first.', 'danger')
+                return render_template('login.html')
+
             # AngelOne API Authentication
             conn = http.client.HTTPSConnection("apiconnect.angelone.in")
             
-            # Prepare login payload
-            payload = json.dumps({
-                "clientcode": client_id,
-                "password": pin,
-                "totp": totp
-            })
-
             # Get client IP
             client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
             if ',' in client_ip:
@@ -193,150 +197,137 @@ def login():
                 'X-PrivateKey': user.api_key
             }
 
-            try:
-                # Make the API request
-                conn.request(
-                    "POST", 
-                    "/rest/auth/angelbroking/user/v1/loginByPassword",
-                    payload,
-                    headers
-                )
-                res = conn.getresponse()
-                data = res.read()
-                response_json = json.loads(data.decode("utf-8"))
+            # Prepare login payload
+            payload = json.dumps({
+                "clientcode": client_id,
+                "password": pin,
+                "totp": totp
+            })
 
-                # Log API response for debugging
-                print(f"Login API Response for {client_id}: {response_json}")
+            current_app.logger.debug("Making API request to AngelOne")
+            conn.request("POST", "/rest/auth/angelbroking/user/v1/loginByPassword", payload, headers)
+            res = conn.getresponse()
+            data = res.read()
+            response_json = json.loads(data.decode("utf-8"))
 
-                # Validate API response
-                if not response_json.get('status'):
-                    error_msg = response_json.get('message', 'Authentication failed')
-                    flash(f'API Error: {error_msg}', 'danger')
-                    return render_template('login.html')
+            current_app.logger.debug(f"API Response: {response_json}")
 
-                # Extract tokens
-                if 'data' not in response_json:
-                    flash('Invalid API response structure', 'danger')
-                    return render_template('login.html')
-
-                token_data = response_json['data']
-                access_token = token_data.get('jwtToken')
-                feed_token = token_data.get('feedToken')
-                refresh_token = token_data.get('refreshToken')
-
-                # Validate required tokens
-                if not access_token or not feed_token:
-                    flash('Required authentication tokens not received', 'danger')
-                    return render_template('login.html')
-
-                try:
-                    # Update user model
-                    user.access_token = access_token
-                    user.feed_token = feed_token
-                    user.last_login = datetime.now()
-                    db.session.commit()
-
-                    # Store in Redis with structured data
-                    store_user_in_redis(user)
-
-                    # Update watchlist data in Redis
-                    watchlists = Watchlist.query.filter_by(user_id=user.id).all()
-                    watchlists_data = []
-
-                    for watchlist in watchlists:
-                        items = WatchlistItem.query.filter_by(watchlist_id=watchlist.id).all()
-                        
-                        # Store individual watchlist data
-                        store_watchlist_in_redis(watchlist, items)
-
-                        # Prepare combined watchlist data
-                        watchlist_dict = {
-                            'id': watchlist.id,
-                            'name': watchlist.name,
-                            'items_list': [{
-                                'id': item.id,
-                                'symbol': item.symbol,
-                                'name': item.name,
-                                'token': item.token,
-                                'expiry': item.expiry,
-                                'strike': item.strike,
-                                'lotsize': item.lotsize,
-                                'instrumenttype': item.instrumenttype,
-                                'exch_seg': item.exch_seg,
-                                'tick_size': item.tick_size
-                            } for item in items]
-                        }
-                        watchlists_data.append(watchlist_dict)
-
-                    # Store combined watchlist data
-                    redis_client.set(
-                        f'user:{user.id}:watchlists',
-                        json.dumps(watchlists_data),
-                        ex=86400  # 24 hours expiry
-                    )
-
-                    # Set session data
-                    session['client_id'] = client_id
-                    session['login_time'] = datetime.now().timestamp()
-                    session['permissions'] = token_data.get('permissions', [])
-
-                    # Store default settings if not exists
-                    settings_key = f'user:{user.id}:watchlist_settings'
-                    if not redis_client.exists(settings_key):
-                        redis_client.hmset(settings_key, {
-                            'show_ltp_change': 'true',
-                            'show_ltp_change_percent': 'true',
-                            'show_holdings': 'true'
-                        })
-
-                    flash('Login successful!', 'success')
-                    return redirect(url_for('dashboard.dashboard'))
-
-                except Exception as db_error:
-                    db.session.rollback()
-                    print(f"Database/Redis Error: {str(db_error)}")
-                    flash('Error storing user data. Please try again.', 'danger')
-                    return render_template('login.html')
-
-            except json.JSONDecodeError as json_error:
-                print(f"JSON Parse Error: {str(json_error)}")
-                flash('Error processing API response', 'danger')
+            if not response_json.get('status'):
+                error_msg = response_json.get('message', 'Authentication failed')
+                current_app.logger.warning(f"API Error: {error_msg}")
+                flash(f'API Error: {error_msg}', 'danger')
                 return render_template('login.html')
 
-            except http.client.HTTPException as http_error:
-                print(f"HTTP Error: {str(http_error)}")
-                flash('Error connecting to authentication service', 'danger')
+            if 'data' not in response_json:
+                current_app.logger.error("Invalid API response structure")
+                flash('Invalid API response structure', 'danger')
+                return render_template('login.html')
+
+            token_data = response_json['data']
+            access_token = token_data.get('jwtToken')
+            feed_token = token_data.get('feedToken')
+
+            if not access_token or not feed_token:
+                current_app.logger.error("Required tokens not received")
+                flash('Required authentication tokens not received', 'danger')
+                return render_template('login.html')
+
+            try:
+                # Update user model
+                user.access_token = access_token
+                user.feed_token = feed_token
+                user.last_login = datetime.now()
+                db.session.commit()
+
+                # Store in Redis
+                if not store_user_in_redis(user):
+                    current_app.logger.error("Failed to store user in Redis")
+                    flash('Error storing session data', 'danger')
+                    return render_template('login.html')
+
+                # Update watchlist data
+                watchlists = Watchlist.query.filter_by(user_id=user.id).all()
+                watchlists_data = []
+
+                for watchlist in watchlists:
+                    items = WatchlistItem.query.filter_by(watchlist_id=watchlist.id).all()
+                    store_watchlist_in_redis(watchlist, items)
+                    
+                    watchlist_dict = {
+                        'id': watchlist.id,
+                        'name': watchlist.name,
+                        'items_list': [{
+                            'id': item.id,
+                            'symbol': item.symbol,
+                            'name': item.name,
+                            'token': item.token,
+                            'expiry': item.expiry,
+                            'strike': item.strike,
+                            'lotsize': item.lotsize,
+                            'instrumenttype': item.instrumenttype,
+                            'exch_seg': item.exch_seg,
+                            'tick_size': item.tick_size
+                        } for item in items]
+                    }
+                    watchlists_data.append(watchlist_dict)
+
+                # Store combined watchlist data
+                redis_client.set(
+                    f'user:{user.id}:watchlists',
+                    json.dumps(watchlists_data),
+                    ex=86400
+                )
+
+                # Set session data
+                session['client_id'] = client_id
+                session['login_time'] = datetime.now().timestamp()
+                session['permissions'] = token_data.get('permissions', [])
+
+                # Store default settings
+                settings_key = f'user:{user.id}:watchlist_settings'
+                if not redis_client.exists(settings_key):
+                    redis_client.hmset(settings_key, {
+                        'show_ltp_change': 'true',
+                        'show_ltp_change_percent': 'true',
+                        'show_holdings': 'true'
+                    })
+
+                current_app.logger.info(f"Login successful for user: {client_id}")
+                flash('Login successful!', 'success')
+                return redirect(url_for('dashboard.dashboard'))
+
+            except Exception as e:
+                db.session.rollback()
+                current_app.logger.error(f"Database/Redis Error: {str(e)}")
+                flash('Error storing user data. Please try again.', 'danger')
                 return render_template('login.html')
 
         except Exception as e:
-            print(f"Unexpected Error: {str(e)}")
+            current_app.logger.error(f"Login error: {str(e)}", exc_info=True)
             flash('An unexpected error occurred', 'danger')
             return render_template('login.html')
 
-    # GET request - render login form
     return render_template('login.html')
 
-# Logout route
 @auth_bp.route('/logout')
 def logout():
-    client_id = session.get('client_id')
+    try:
+        client_id = session.get('client_id')
+        
+        if client_id:
+            current_app.logger.debug(f"Logging out user: {client_id}")
+            user = User.query.filter_by(client_id=client_id).first()
 
-    if client_id:
-        # Find the user in the database
-        user = User.query.filter_by(client_id=client_id).first()
+            if user:
+                user.access_token = None
+                db.session.commit()
+                remove_user_from_redis(client_id)
 
-        if user:
-            # Remove the access token from the user record
-            user.access_token = None
-            db.session.commit()
-
-            # Remove user details from Redis
-            remove_user_from_redis(client_id)
-
-        # Clear the session
-        session.pop('client_id', None)
-        flash('You have been logged out and access token removed.', 'success')
+            session.pop('client_id', None)
+            flash('You have been logged out and access token removed.', 'success')
  
-    return redirect(url_for('auth.login'))
-
-
+        return redirect(url_for('auth.login'))
+    except Exception as e:
+        current_app.logger.error(f"Logout error: {str(e)}")
+        flash('Error during logout', 'danger')
+        return redirect(url_for('auth.login'))
