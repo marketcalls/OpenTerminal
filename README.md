@@ -1,134 +1,47 @@
 # Open Terminal - Trading Dashboard
 
-Open Terminal is a Flask-based application for traders that provides a secure login system using AngelOne API, registration, and a protected dashboard. The app utilizes SQLite for database management, Flask-SQLAlchemy for ORM, and Redis for caching.
+Open Terminal is a Flask-based trading dashboard that provides a secure, feature-rich platform for traders using AngelOne API. It offers real-time market data, watchlist management, and comprehensive trading capabilities.
 
-## Features
-
-### Core Features
-- **User Registration**: Users can register by providing their username, client ID, and API key
-- **Login Authentication**: Secure login using AngelOne's API, with session management and access token storage
-- **Protected Dashboard**: Accessible only to authenticated users
+## Key Features
 
 ### Trading Features
-- **Watchlists**: Create, update, and delete watchlists (up to 5 per user)
-- **Watchlist Items**: Add, remove, and manage items in watchlists
-- **Real-time Data**: Display of real-time market data for watchlist items
+- **Real-time Market Data**: Live streaming of market prices and depth
+- **Watchlist Management**: Create and manage up to 5 watchlists
+- **Order Management**: Place, modify, and track orders
+- **Portfolio Overview**: View holdings, positions, and P&L
 - **Market Depth**: Level 2 order book display
-- **Search Functionality**: Search for symbols to add to watchlists
-- **Market Indices**: Display of NIFTY and SENSEX indices
+- **Symbol Search**: Extensive search functionality for adding instruments
 
-### User Experience
-- **Customizable Settings**: Users can customize their watchlist display settings
-- **Secure Logout**: Removes the access token from the database and logs the user out
-- **Modern UI**: Uses Tailwind CSS and DaisyUI for a consistent, modern interface
+### Technical Features
+- **Secure Authentication**: AngelOne API integration for secure login
+- **WebSocket Integration**: Real-time data updates
+- **Redis Caching**: Optimized performance with Redis
+- **Modular Architecture**: Well-organized, maintainable codebase
+- **Responsive Design**: Modern UI using Tailwind CSS and DaisyUI
 
 ## Technology Stack
 
 ### Backend
-- **Framework**: Flask, Flask-SQLAlchemy, Flask-Login, Flask-WTF
-- **Database**: SQLite
-- **Caching**: Redis
-- **API Integration**: AngelOne API for user authentication and market data
-- **Task Scheduling**: APScheduler
-- **Timezone**: pytz for timezone handling
+- Flask & Flask extensions (SQLAlchemy, Login, WTF)
+- SQLite Database
+- Redis for caching
+- WebSocket for real-time data
+- APScheduler for task scheduling
 
 ### Frontend
-- **CSS Framework**: Tailwind CSS
-- **UI Components**: DaisyUI
-- **JavaScript**: Modern ES6+ with modular architecture
-- **Real-time Updates**: WebSocket integration
+- Tailwind CSS with DaisyUI
+- Modern JavaScript (ES6+)
+- Modular component architecture
+- WebSocket client integration
 
-## Project Structure
-
-```bash
-openterminal/
-├── app.py                # Application entry point
-├── config.py             # Flask configuration
-├── extensions.py         # Database and extensions
-├── master_contract.py    # Market data handling
-├── models.py             # Database models
-├── triggerdb.py          # Database triggers
-├── README.md             # Project documentation
-├── requirements.txt      # Dependencies
-├── vercel.json           # Vercel deployment configuration
-├── instance/             # Instance-specific data
-├── routes/               
-│   ├── __init__.py
-│   ├── auth.py           # Authentication routes
-│   ├── books.py          # Books routes
-│   ├── funds.py          # Funds routes
-│   ├── home.py           # Home routes
-│   ├── orders/
-│   │   ├── __init__.py
-│   │   ├── constants.py
-│   │   ├── routes.py
-│   │   ├── services/
-│   │   │   ├── order_service.py
-│   │   │   ├── broker_service.py
-│   │   │   └── market_feed.py
-│   │   ├── validators/
-│   │   │   ├── order_validator.py
-│   │   │   └── exchange_rules.py
-│   │   └── utils/
-│   │       ├── formatters.py
-│   │       └── helpers.py
-│   └── dashboard/
-│       ├── __init__.py
-│       ├── market_data_service.py
-│       ├── routes.py
-│       ├── settings_service.py
-│       ├── utils.py
-│       └── watchlist_service.py
-├── static/             
-│   └── js/
-│       ├── dashboard.js  # Main dashboard logic
-│       └── modules/
-│           ├── marketDataDecoder.js    # Real-time Websocket decoder
-│           ├── marketDataUpdater.js    # Real-time updates
-│           ├── watchlistCore.js        # Core watchlist functionality
-│           ├── watchlistEvents.js      # Watchlist event handlers
-│           ├── watchlistManager.js     # Watchlist management
-│           ├── watchlistOperations.js  # Watchlist operations
-│           ├── orderEntry/
-│           │   ├── components/
-│           │   │   ├── OrderForm.js
-│           │   │   ├── OrderModal.js
-│           │   │   ├── MarketDepth.js
-│           │   │   ├── PriceInput.js
-│           │   │   └── QuantityInput.js
-│           │   ├── services/
-│           │   │   ├── orderApi.js
-│           │   │   ├── priceService.js
-│           │   │   └── orderState.js
-│           │   └── utils/
-│           │       ├── validators.js
-│           │       └── formatters.js
-│           └── templates/
-│               ├── emptyWatchlist.html
-│               ├── marketDepth.html
-│               └── symbolListItem.html
-└── templates/           # HTML templates
-    ├── about.html
-    ├── dashboard.html
-    ├── funds.html
-    ├── holdings.html
-    ├── index.html
-    ├── layout.html
-    ├── login.html
-    ├── orderbook.html
-    ├── positions.html
-    ├── register.html
-    └── tradebook.html
-```
-
-## Installation
+## Quick Start
 
 ### Prerequisites
 - Python 3.9+
 - Redis Server
 - Git
 
-### Setup Steps
+### Installation
 
 1. **Clone the repository:**
 ```bash
@@ -136,103 +49,80 @@ git clone https://github.com/marketcalls/OpenTerminal.git
 cd OpenTerminal
 ```
 
-2. **Create virtual environment:**
+2. **Set up Python environment:**
 ```bash
 python -m venv venv
-```
-
-3. **Activate virtual environment:**
-```bash
-# Windows
-venv\Scripts\activate
-# macOS/Linux
-source venv/bin/activate
-```
-
-4. **Install dependencies:**
-```bash
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-5. **Configure Redis:**
-- Install Redis on your system if not already installed
-- Ensure Redis server is running
-
-6. **Run application:**
-```bash
-python app.py
-```
-
-7. Access at `http://127.0.0.1:5000`
-
-Note: The SQLite database will be created automatically when you first run the application.
-
-## Environment Variables
-
-Create a `.env` file with:
+3. **Configure environment:**
+Create `.env` file with:
 ```env
 SECRET_KEY=your-secret-key
 SQLALCHEMY_DATABASE_URI=sqlite:///open_terminal.db
 REDIS_URL=redis://localhost:6379/0
 ```
 
-## Usage Guide
+4. **Start Redis server**
 
-1. **Registration**
-   - Visit `/register`
-   - Provide required credentials
+5. **Run the application:**
+```bash
+python app.py
+```
 
-2. **Login**
-   - Use client ID, PIN, and TOTP
-   - Access granted to dashboard
+Access at `http://127.0.0.1:5000`
 
-3. **Dashboard Features**
-   - Manage watchlists (up to 5)
-   - Add/remove symbols
-   - View real-time data
-   - Customize settings
-   - Monitor market indices
+## Project Structure
 
-4. **Additional Features**
-   - Access funds information
-   - View holdings
-   - Check order book
-   - Monitor positions
-   - Review trade book
+```
+openterminal/
+├── app.py              # Application entry point
+├── config.py           # Configuration settings
+├── extensions.py       # Flask extensions
+├── models.py          # Database models
+├── routes/            # Route modules
+│   ├── auth.py        # Authentication
+│   ├── dashboard/     # Dashboard features
+│   └── orders/        # Order management
+├── static/            # Static assets
+│   ├── css/          # Stylesheets
+│   └── js/           # JavaScript modules
+└── templates/         # HTML templates
+```
 
-5. **Logout**
-   - Secure session termination
-   - Token cleanup
+## Development
 
-## Development Status
+### Code Organization
+- **Routes**: Organized by feature in separate modules
+- **Services**: Business logic separated from routes
+- **Models**: SQLAlchemy models for data structure
+- **Static**: Modular JavaScript and CSS assets
+- **Templates**: Jinja2 templates with component structure
 
-Open Terminal is under active development with regular updates and improvements. Users should expect ongoing enhancements and potential changes as the platform evolves.
+### Best Practices
+- Follows Flask application factory pattern
+- Implements proper error handling
+- Uses type hints and docstrings
+- Maintains consistent code style
+- Includes comprehensive logging
 
-## Future Features
+## Production Deployment
 
-- Comprehensive trading functionality
-- Advanced charting capabilities
-- Multi-broker integration
-- Backtesting tools
-- Strategy building features
-
-## Contributing
-
-We welcome contributions! For major changes:
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
-4. Open an issue for discussion
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed production deployment instructions.
 
 ## License
 
 GNU Affero General Public License v3.0 (AGPL-3.0)
 
-Key requirements:
-- Source code availability for modifications
-- Network use considered as distribution
-- Modifications must maintain AGPL-3.0 license
-- See [LICENSE](LICENSE) file for complete terms
+See [LICENSE](LICENSE) file for complete terms.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request
+4. Open an issue for discussion
 
 ---
-Developed with passion for the trading community
+Built with ❤️ for the trading community
