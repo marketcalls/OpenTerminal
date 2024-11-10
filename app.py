@@ -34,21 +34,27 @@ def create_app():
     with app.app_context():
         db.create_all()
 
+    # Do not start the scheduler here
+    # schedule_task(app)
+
     return app
 
 def schedule_task(app):
-    scheduler = BackgroundScheduler()
-    ist = pytz.timezone('Asia/Kolkata')
-    scheduler.add_job(
-        func=lambda: download_and_store_json(app),
-        trigger='cron',
-        hour=19,
-        minute=20,
-        timezone=ist
-    )
-    scheduler.start()
+    with app.app_context():
+        scheduler = BackgroundScheduler()
+        ist = pytz.timezone('Asia/Kolkata')
+        scheduler.add_job(
+            func=lambda: download_and_store_json(app),
+            trigger='cron',
+            hour=12,
+            minute=28,
+            timezone=ist
+        )
+        scheduler.start()
+        app.logger.info("Scheduler started.")
 
 if __name__ == "__main__":
     app = create_app()
+    # Do not start the scheduler here in production deployment
     schedule_task(app)
     app.run(debug=True)
