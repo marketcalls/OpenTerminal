@@ -1,6 +1,6 @@
 # OpenTerminal Production Deployment Guide
 
-This guide details the steps to deploy OpenTerminal in a production environment using Nginx, Gunicorn, and systemd.
+This guide details the steps to deploy OpenTerminal in a production environment using Nginx, Gunicorn, systemd, and a daily scheduler service.
 
 ## System Requirements
 
@@ -135,7 +135,50 @@ sudo systemctl enable openterminal
 sudo systemctl start openterminal
 ```
 
-### 5. SSL Certificate (Let's Encrypt)
+### 5. Scheduler Service Setup
+
+Create a new systemd service file to run scheduled tasks with the `scheduler.py` script:
+
+```ini
+# /etc/systemd/system/openterminal-scheduler.service
+[Unit]
+Description=Scheduler for OpenTerminal daily tasks
+After=network.target openterminal.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/python/openterminal
+Environment="PATH=/var/python/venv/bin"
+ExecStart=/var/python/venv/bin/python /var/python/openterminal/scheduler.py
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Create a timer file to run this service daily:
+
+```ini
+# /etc/systemd/system/openterminal-scheduler.timer
+[Unit]
+Description=Run OpenTerminal Scheduler daily
+
+[Timer]
+OnCalendar=*-*-* 00:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable and start the timer:
+
+```bash
+sudo systemctl enable openterminal-scheduler.timer
+sudo systemctl start openterminal-scheduler.timer
+```
+
+### 6. SSL Certificate (Let's Encrypt)
 
 ```bash
 # Install certbot
@@ -145,7 +188,7 @@ sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d your-domain.com
 ```
 
-### 6. File Permissions
+### 7. File Permissions
 
 Run the prestart script to set proper permissions:
 ```bash
@@ -157,7 +200,7 @@ sudo chown -R www-data:www-data /var/python/openterminal
 sudo chmod -R u+rwX,g+rX,o+rX /var/python/openterminal
 ```
 
-### 7. Environment Configuration
+### 8. Environment Configuration
 
 Create and configure `.env` file:
 ```bash
@@ -180,18 +223,22 @@ PRODUCTION=true
 - Nginx access logs: `/var/log/nginx/access.log`
 - Nginx error logs: `/var/log/nginx/error.log`
 - System logs: `journalctl -u openterminal`
+- Scheduler logs: `journalctl -u openterminal-scheduler`
 
 ### Common Commands
 
 ```bash
 # Check service status
 sudo systemctl status openterminal
+sudo systemctl status openterminal-scheduler
 
 # Restart service
 sudo systemctl restart openterminal
+sudo systemctl restart openterminal-scheduler
 
 # View logs
 sudo journalctl -u openterminal -f
+sudo journalctl -u openterminal-scheduler -f
 
 # Reload Nginx
 sudo systemctl reload nginx
@@ -209,6 +256,7 @@ cp /var/python/openterminal/instance/open_terminal.db /backup/
 cp -r /var/python/openterminal/.env /backup/
 cp /etc/nginx/sites-available/openterminal /backup/
 cp /etc/systemd/system/openterminal.service /backup/
+cp /etc/systemd/system/openterminal-scheduler.service /backup/
 ```
 
 ## Troubleshooting
