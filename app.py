@@ -8,7 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from master_contract import download_and_store_json
 import pytz
 from flask_wtf.csrf import CSRFProtect
-from flask_session import Sessions
+from flask_session import Session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 def create_app():
