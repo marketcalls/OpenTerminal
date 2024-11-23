@@ -1,13 +1,14 @@
-from flask import Flask, request  # Include request
+from flask import Flask
 from extensions import db
-from routes import auth_bp, home_bp, funds_bp, books_bp
-from routes.orders import orders_bp
-from routes.dashboard import dashboard_bp
+from routes import (
+    auth_bp, home_bp, funds_bp, books_bp,
+    dashboard_bp, orders_bp, voice_bp
+)
 from apscheduler.schedulers.background import BackgroundScheduler
 from master_contract import download_and_store_json
 import pytz
 from flask_wtf.csrf import CSRFProtect
-from flask_session import Session
+from flask_session import Sessions
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 def create_app():
@@ -23,19 +24,22 @@ def create_app():
     csrf = CSRFProtect(app)
 
     # Register blueprints
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(dashboard_bp)
-    app.register_blueprint(home_bp)
-    app.register_blueprint(funds_bp)
-    app.register_blueprint(books_bp)
-    app.register_blueprint(orders_bp, url_prefix='/api')
+    blueprints = [
+        (auth_bp, None),
+        (dashboard_bp, None),
+        (home_bp, None),
+        (funds_bp, None),
+        (books_bp, None),
+        (orders_bp, '/api'),
+        (voice_bp, '/voice'),
+    ]
+
+    for blueprint, url_prefix in blueprints:
+        app.register_blueprint(blueprint, url_prefix=url_prefix)
 
     # Initialize the database
     with app.app_context():
         db.create_all()
-
-    # Do not start the scheduler here
-    # schedule_task(app)
 
     return app
 

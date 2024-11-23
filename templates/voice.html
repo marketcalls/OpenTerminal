@@ -1,0 +1,271 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto p-4">
+    <h1 class="text-3xl font-bold mb-4">Voice Trading</h1>
+    
+    <!-- Instructions Section -->
+    <div class="mb-6 bg-base-200 p-4 rounded-lg">
+        <h2 class="text-xl font-semibold mb-2">How to Use:</h2>
+        <ul class="list-disc list-inside text-base-content space-y-2">
+            <li>Click the <strong>"Start Listening"</strong> button to begin.</li>
+            <li>Speak your command clearly, e.g., "{{ settings.voice_activate_commands|replace('["', '')|replace('"]', '') }} buy 20 TCS".</li>
+            <li>After a brief pause, your order will be processed automatically.</li>
+            <li>To stop listening, click the <strong>"Listening"</strong> button.</li>
+        </ul>
+        <p class="mt-2 text-sm">Current Exchange: <strong>{{ settings.preferred_exchange }}</strong> | Product Type: <strong>{{ settings.preferred_product_type }}</strong></p>
+    </div>
+
+    <!-- Trading Controls -->
+    <div class="flex flex-col gap-4">
+        <!-- Listening Controls -->
+        <div class="flex items-center gap-4">
+            <button id="toggleButton" class="btn btn-primary">
+                Start Listening
+            </button>
+            <a href="{{ url_for('voice.voice_settings') }}" class="btn btn-outline">
+                Settings
+            </a>
+        </div>
+
+        <!-- Status Display -->
+        <div class="alert alert-info">
+            <span id="status">Ready to listen...</span>
+        </div>
+
+        <!-- Flash Messages -->
+        <div id="flashMessages"></div>
+
+        <!-- Transcription History -->
+        <div class="bg-base-200 p-4 rounded-lg">
+            <h2 class="text-xl font-semibold mb-2">Transcription History:</h2>
+            <div id="transcriptionHistory" class="space-y-2"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Add JavaScript for voice functionality -->
+<script>
+const toggleButton = document.getElementById('toggleButton');
+const transcriptionHistoryElement = document.getElementById('transcriptionHistory');
+const statusElement = document.getElementById('status');
+const flashMessagesElement = document.getElementById('flashMessages');
+let mediaRecorder;
+let isListening = false;
+let audioContext;
+let analyser;
+let silenceTimeout;
+let shouldContinueListening = false;
+
+// Configuration for silence detection
+const SILENCE_THRESHOLD = 0.01;
+const SILENCE_DURATION = 1000; // 1 second of silence
+
+function updateStatus(message) {
+    statusElement.textContent = message;
+}
+
+function showFlashMessage(message, type) {
+    const flashDiv = document.createElement('div');
+    flashDiv.className = `alert ${
+        type === 'buy' ? 'alert-success' :
+        type === 'sell' ? 'alert-error' :
+        type === 'error' ? 'alert-warning' :
+        'alert-info'
+    } mb-4`;
+    flashDiv.textContent = message;
+    flashMessagesElement.appendChild(flashDiv);
+    setTimeout(() => flashDiv.remove(), 5000);
+}
+
+function addTranscriptionEntry(transcription, orderResponse, action, quantity, symbol, timestamp) {
+    const entryDiv = document.createElement('div');
+    entryDiv.className = 'bg-base-300 p-3 rounded';
+
+    const timestampP = document.createElement('p');
+    timestampP.className = 'text-xs opacity-70';
+    timestampP.textContent = `Time: ${timestamp}`;
+    entryDiv.appendChild(timestampP);
+
+    const transcriptionP = document.createElement('p');
+    transcriptionP.className = 'font-semibold';
+    transcriptionP.textContent = `Transcription: ${transcription}`;
+    entryDiv.appendChild(transcriptionP);
+
+    if (action && quantity && symbol) {
+        const commandDetailsDiv = document.createElement('div');
+        commandDetailsDiv.className = 'mt-2';
+        
+        const actionP = document.createElement('p');
+        actionP.className = 'text-sm';
+        actionP.textContent = `Action: ${action}`;
+        commandDetailsDiv.appendChild(actionP);
+        
+        const quantityP = document.createElement('p');
+        quantityP.className = 'text-sm';
+        quantityP.textContent = `Quantity: ${quantity}`;
+        commandDetailsDiv.appendChild(quantityP);
+        
+        const symbolP = document.createElement('p');
+        symbolP.className = 'text-sm';
+        symbolP.textContent = `Symbol: ${symbol}`;
+        commandDetailsDiv.appendChild(symbolP);
+        
+        entryDiv.appendChild(commandDetailsDiv);
+    }
+
+    if (orderResponse) {
+        const orderP = document.createElement('p');
+        if (orderResponse.error) {
+            orderP.className = 'text-warning';
+            orderP.textContent = `Order Error: ${orderResponse.error}`;
+        } else {
+            orderP.className = action?.toLowerCase() === 'buy' ? 'text-success' : 'text-error';
+            orderP.textContent = `Order Placed - ID: ${orderResponse.orderid}`;
+            showFlashMessage(`${action} order placed successfully`, action?.toLowerCase());
+        }
+        entryDiv.appendChild(orderP);
+    }
+
+    transcriptionHistoryElement.insertBefore(entryDiv, transcriptionHistoryElement.firstChild);
+}
+
+async function sendAudioToServer(audioBlob) {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'audio.webm');
+
+    try {
+        const response = await fetch('{{ url_for("voice.transcribe") }}', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const timestamp = new Date().toLocaleString();
+        addTranscriptionEntry(
+            data.text,
+            data.order_response,
+            data.action,
+            data.quantity,
+            data.symbol,
+            timestamp
+        );
+        updateStatus('Transcription and order processing complete');
+    } catch (error) {
+        console.error('Error processing audio:', error);
+        updateStatus(`Error: ${error.message}`);
+        showFlashMessage(`Error: ${error.message}. Please try again.`, 'error');
+    }
+}
+
+async function startListening() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+        let audioChunks = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+                detectSilence();
+            }
+        };
+
+        mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            await sendAudioToServer(audioBlob);
+            audioChunks = [];
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+                analyser = null;
+            }
+            if (shouldContinueListening) {
+                startListening();
+            }
+        };
+
+        mediaRecorder.start(250);
+        isListening = true;
+        shouldContinueListening = true;
+        toggleButton.textContent = 'Listening...';
+        toggleButton.classList.remove('btn-primary');
+        toggleButton.classList.add('btn-error');
+        updateStatus('Listening...');
+        initializeAudioContext(stream);
+    } catch (error) {
+        console.error('Error accessing microphone:', error);
+        updateStatus('Error accessing microphone');
+        showFlashMessage('Failed to access the microphone. Please ensure you have given permission and try again.', 'error');
+    }
+}
+
+function stopListening() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        shouldContinueListening = false;
+        mediaRecorder.stop();
+        isListening = false;
+        toggleButton.textContent = 'Start Listening';
+        toggleButton.classList.remove('btn-error');
+        toggleButton.classList.add('btn-primary');
+        updateStatus('Stopped listening');
+        clearTimeout(silenceTimeout);
+    }
+}
+
+function initializeAudioContext(stream) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioContext.createMediaStreamSource(stream);
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 2048;
+    source.connect(analyser);
+}
+
+function detectSilence() {
+    if (!analyser) return;
+
+    const bufferLength = analyser.fftSize;
+    const dataArray = new Uint8Array(bufferLength);
+    analyser.getByteTimeDomainData(dataArray);
+
+    let sum = 0;
+    for (let i = 0; i < bufferLength; i++) {
+        const sample = dataArray[i] / 128 - 1;
+        sum += sample * sample;
+    }
+    const rms = Math.sqrt(sum / bufferLength);
+    const silence = rms < SILENCE_THRESHOLD;
+
+    if (silence) {
+        if (!silenceTimeout) {
+            silenceTimeout = setTimeout(() => {
+                stopRecordingDueToSilence();
+            }, SILENCE_DURATION);
+        }
+    } else {
+        clearTimeout(silenceTimeout);
+        silenceTimeout = null;
+    }
+}
+
+function stopRecordingDueToSilence() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
+}
+
+toggleButton.addEventListener('click', () => {
+    if (isListening) {
+        stopListening();
+    } else {
+        startListening();
+    }
+});
+</script>
+{% endblock %}
