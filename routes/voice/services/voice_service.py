@@ -8,6 +8,8 @@ import re
 from ..utils.helpers import format_log_message, map_product_type_to_api
 from ratelimit import limits, sleep_and_retry
 import http.client
+from datetime import datetime
+import pytz
 
 logger = logging.getLogger('voice')
 
@@ -29,6 +31,11 @@ class VoiceService:
             "SALE": "SELL", "SEL": "SELL",
             "SELL": "SELL"
         }
+        self.ist_tz = pytz.timezone('Asia/Kolkata')
+
+    def get_current_ist_time(self):
+        """Get current time in IST"""
+        return datetime.now(self.ist_tz)
 
     @sleep_and_retry
     @limits(calls=15, period=60)  # 15 calls per minute
@@ -223,7 +230,7 @@ class VoiceService:
             # Log response
             logger.info(f"Angel One API Response: {json.dumps(response_data)}")
 
-            # Create order log
+            # Create order log with IST timestamp
             order_log = OrderLog(
                 user_id=user.id,
                 order_id=response_data.get('data', {}).get('orderid', 'UNKNOWN'),
@@ -235,7 +242,8 @@ class VoiceService:
                 quantity=quantity,
                 status=response_data.get('status', 'FAILED'),
                 message=response_data.get('message', ''),
-                order_source='VOICE'
+                order_source='VOICE',
+                timestamp=self.get_current_ist_time()
             )
             db.session.add(order_log)
             db.session.commit()
@@ -270,7 +278,8 @@ class VoiceService:
                         quantity=quantity,
                         status='FAILED',
                         message=error_msg,
-                        order_source='VOICE'
+                        order_source='VOICE',
+                        timestamp=self.get_current_ist_time()
                     )
                     db.session.add(order_log)
                     db.session.commit()
