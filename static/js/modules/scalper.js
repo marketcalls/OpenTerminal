@@ -36,6 +36,21 @@ document.addEventListener('DOMContentLoaded', function() {
         'NCDEX': 'badge-error'
     };
 
+    // Function to convert UTC to IST
+    function formatISTTime(utcTime) {
+        const date = new Date(utcTime);
+        return date.toLocaleString('en-IN', { 
+            timeZone: 'Asia/Kolkata',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        });
+    }
+
     // Initialize product type buttons
     productTypeInputs.forEach(input => {
         const title = input.getAttribute('data-title');
@@ -227,7 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const entry = document.createElement('div');
         entry.className = 'mb-2';
         
-        const timestamp = new Date().toLocaleTimeString();
+        const timestamp = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' });
         const content = `
             <div class="text-xs opacity-50">${timestamp} - ${type}</div>
             <div class="text-sm whitespace-pre-wrap">${JSON.stringify(data, null, 2)}</div>
@@ -268,11 +283,15 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(orders => {
                 orderHistory.innerHTML = '';
+                
+                // Sort orders by timestamp in descending order (newest first)
+                orders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                
                 orders.forEach(order => {
-                    const row = orderHistory.insertRow(0);
+                    const row = orderHistory.insertRow();
                     row.className = order.transaction_type === 'BUY' ? 'hover bg-success/10' : 'hover bg-error/10';
                     row.innerHTML = `
-                        <td>${new Date(order.timestamp).toLocaleString()}</td>
+                        <td>${formatISTTime(order.timestamp)}</td>
                         <td>${order.symbol}</td>
                         <td>
                             <div class="badge ${order.transaction_type === 'BUY' ? 'badge-success' : 'badge-error'}">
