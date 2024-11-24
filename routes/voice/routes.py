@@ -1,12 +1,15 @@
-from flask import render_template, request, jsonify, session, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for
 from models import User, UserSettings
 from .services.voice_service import VoiceService
 from .utils.helpers import is_market_open
 import logging
+import json
 
+voice_bp = Blueprint('voice', __name__)
 voice_service = VoiceService()
 logger = logging.getLogger('voice')
 
+@voice_bp.route('/voice')
 def voice_trading():
     """Render voice trading interface"""
     if 'client_id' not in session:
@@ -22,6 +25,7 @@ def voice_trading():
                          settings=settings,
                          title='Voice Trading')
 
+@voice_bp.route('/voice/transcribe', methods=['POST'])
 async def transcribe():
     """Handle voice transcription and order placement"""
     if 'client_id' not in session:
@@ -73,6 +77,7 @@ async def transcribe():
         logger.error(f"Error processing voice order: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
 
+@voice_bp.route('/voice/settings', methods=['GET', 'POST'])
 def voice_settings():
     """Handle voice trading settings"""
     if 'client_id' not in session:
@@ -84,21 +89,66 @@ def voice_settings():
 
     if request.method == 'POST':
         try:
+            # Get JSON data from request
+            settings_data = request.get_json()
+            if not settings_data:
+                return jsonify({'error': 'No settings data provided'}), 400
+
             # Update settings
-            result = voice_service.update_settings(user.id, request.get_json())
+            result = voice_service.update_settings(user.id, settings_data)
             if 'error' in result:
                 return jsonify(result), 400
-            return jsonify({'status': 'success', 'message': 'Settings updated successfully'})
+
+            # Get updated settings for response
+            updated_settings = UserSettings.query.filter_by(user_id=user.id).first()
+            if not updated_settings:
+                return jsonify({'error': 'Failed to retrieve updated settings'}), 500
+
+            return jsonify({
+                'status': 'success',
+                'message': 'Settings updated successfully',
+                'settings': {
+                    'groq_api_key': updated_settings.groq_api_key,
+                    'voice_activate_commands': json.loads(updated_settings.voice_activate_commands),
+                    'preferred_exchange': updated_settings.preferred_exchange,
+                    'preferred_product_type': updated_settings.preferred_product_type,
+                    'preferred_model': updated_settings.preferred_model,
+                    'trading_symbols_mapping': json.loads(updated_settings.trading_symbols_mapping)
+                }
+            })
+
+        except json.JSONDecodeError:
+            logger.error("Invalid JSON in request")
+            return jsonify({'error': 'Invalid JSON data'}), 400
         except Exception as e:
             logger.error(f"Error updating settings: {str(e)}")
             return jsonify({'error': 'Failed to update settings'}), 500
 
     # GET request - return current settings
-    settings = user.settings
-    if not settings:
-        # Create default settings if none exist
-        settings = voice_service.create_default_settings(user.id)
+    try:
+        settings = user.settings
+        if not settings:
+            # Create default settings if none exist
+            settings = voice_service.create_default_settings(user.id)
 
-    return render_template('voice_settings.html',
-                         settings=settings,
-                         title='Voice Trading Settings')
+        # Parse JSON fields for template
+        try:
+            voice_commands = json.loads(settings.voice_activate_commands)
+        except (json.JSONDecodeError, TypeError):
+            voice_commands = ["MILO"]
+
+        try:
+            trading_symbols = json.loads(settings.trading_symbols_mapping)
+        except (json.JSONDecodeError, TypeError):
+            trading_symbols = {}
+
+        return render_template('voice_settings.html',
+                            settings=settings,
+                            voice_commands=voice_commands,
+                            trading_symbols=trading_symbols,
+                            title='Voice Trading Settings')
+
+    except Exception as e:
+        logger.error(f"Error retrieving settings: {str(e)}")
+        flash('Error loading settings', 'error')
+        return redirect(url_for('voice.voice_trading'))

@@ -11,6 +11,14 @@ from ...orders.services.order_service import OrderService
 logger = logging.getLogger('voice')
 order_service = OrderService()
 
+# Default trading symbol mappings
+DEFAULT_TRADING_SYMBOLS = {
+    "BHEL-EQ": ["BHEL", "B H E L"],
+    "INFY-EQ": ["INFI", "INFY", "INFE", "I N F Y"],
+    "RELIANCE-EQ": ["RELIANCE", "RELIANC", "RILLIANS"],
+    "TCS-EQ": ["TCS", "T C S"]
+}
+
 class VoiceService:
     def __init__(self):
         self.command_synonyms = {
@@ -172,16 +180,25 @@ class VoiceService:
 
     def _map_trading_symbol(self, spoken_symbol: str, symbol_mappings: dict) -> Optional[str]:
         """Map spoken symbol to standard trading symbol"""
-        spoken_symbol = spoken_symbol.upper()
+        spoken_symbol = spoken_symbol.upper().strip()
         
-        # Direct match
+        # Direct match with standard symbol
         if spoken_symbol in symbol_mappings:
             return spoken_symbol
             
         # Check variations
         for standard_symbol, variations in symbol_mappings.items():
-            if spoken_symbol in [v.upper() for v in variations]:
+            variations = [v.upper().strip() for v in variations]
+            if spoken_symbol in variations:
                 return standard_symbol
+                
+        # Try partial matching for longer names
+        for standard_symbol, variations in symbol_mappings.items():
+            variations = [v.upper().strip() for v in variations]
+            # Check if spoken symbol is contained in any variation
+            for variation in variations:
+                if spoken_symbol in variation or variation in spoken_symbol:
+                    return standard_symbol
                 
         return None
 
@@ -193,24 +210,41 @@ class VoiceService:
                 settings = UserSettings(user_id=user_id)
                 db.session.add(settings)
 
-            # Update fields
+            # Validate and update fields
             if 'voice_activate_commands' in settings_data:
-                settings.voice_activate_commands = json.dumps(settings_data['voice_activate_commands'])
+                commands = settings_data['voice_activate_commands']
+                if not isinstance(commands, list):
+                    return {'error': 'voice_activate_commands must be a list'}
+                settings.voice_activate_commands = json.dumps(commands)
+
             if 'groq_api_key' in settings_data:
                 settings.groq_api_key = settings_data['groq_api_key']
+
             if 'preferred_exchange' in settings_data:
                 settings.preferred_exchange = settings_data['preferred_exchange']
+
             if 'preferred_product_type' in settings_data:
                 settings.preferred_product_type = settings_data['preferred_product_type']
+
             if 'preferred_model' in settings_data:
                 settings.preferred_model = settings_data['preferred_model']
+
             if 'trading_symbols_mapping' in settings_data:
-                settings.trading_symbols_mapping = json.dumps(settings_data['trading_symbols_mapping'])
+                mapping = settings_data['trading_symbols_mapping']
+                if not isinstance(mapping, dict):
+                    return {'error': 'trading_symbols_mapping must be a dictionary'}
+                # Validate the structure
+                for symbol, variations in mapping.items():
+                    if not isinstance(variations, list):
+                        return {'error': f'Variations for symbol {symbol} must be a list'}
+                settings.trading_symbols_mapping = json.dumps(mapping)
 
             db.session.commit()
+            logger.info(f"Settings updated successfully for user {user_id}")
             return {'status': 'success'}
 
         except Exception as e:
+            db.session.rollback()
             logger.error(f"Error updating settings: {str(e)}")
             return {'error': str(e)}
 
@@ -223,16 +257,14 @@ class VoiceService:
                 preferred_exchange='NSE',
                 preferred_product_type='MIS',
                 preferred_model='whisper-large-v3',
-                trading_symbols_mapping=json.dumps({
-                    "INFY": ["INFI", "INFY", "INFE"],
-                    "TCS": ["TCS", "T C S"],
-                    "RELIANCE": ["RELIANCE", "RELIANC", "RILLIANS"]
-                })
+                trading_symbols_mapping=json.dumps(DEFAULT_TRADING_SYMBOLS)
             )
             db.session.add(settings)
             db.session.commit()
+            logger.info(f"Default settings created for user {user_id}")
             return settings
 
         except Exception as e:
+            db.session.rollback()
             logger.error(f"Error creating default settings: {str(e)}")
             raise
