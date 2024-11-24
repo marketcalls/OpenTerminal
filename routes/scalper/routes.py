@@ -54,14 +54,17 @@ def place_order():
 
         # Get and validate request data
         try:
+            if not request.is_json:
+                logger.error("Request is not JSON")
+                return jsonify({'error': 'Request must be JSON'}), 400
+
             data = request.get_json()
             if not data:
                 logger.error("No JSON data in request")
                 return jsonify({'error': 'No data provided'}), 400
             
-            # Log raw request
-            logger.info(f"Raw request data: {request.data.decode('utf-8')}")
-            logger.info(f"Parsed request data: {json.dumps(data)}")
+            # Log request details
+            logger.info(f"Received order request: {json.dumps(data)}")
             
         except json.JSONDecodeError as e:
             logger.error(f"JSON decode error: {str(e)}")
@@ -73,9 +76,6 @@ def place_order():
         symbol = data.get('symbol')
         exchange = data.get('exchange')
         product_type = data.get('product_type', 'MIS')  # Default to MIS if not provided
-
-        # Log request details
-        logger.info(f"Received order request: {json.dumps(data)}")
 
         # Validate inputs
         if not all([action, quantity, symbol, exchange]):

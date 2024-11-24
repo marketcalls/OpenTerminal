@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchResults = document.getElementById('searchResults');
     const selectedSymbol = document.getElementById('selectedSymbol');
     const selectedExchange = document.getElementById('selectedExchange');
-    const selectedToken = document.getElementById('selectedToken');
     const quantity = document.getElementById('quantity');
     const orderHistory = document.getElementById('orderHistory').getElementsByTagName('tbody')[0];
     const apiLog = document.getElementById('apiLog');
@@ -14,7 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const sellOrders = document.getElementById('sellOrders');
     const productTypeInputs = document.getElementsByName('productType');
 
-    // Get CSRF token
+    // Get CSRF token from meta tag
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
     let selectedInstrument = null;
@@ -23,6 +22,18 @@ document.addEventListener('DOMContentLoaded', function() {
         total: 0,
         buy: 0,
         sell: 0
+    };
+
+    // Exchange badge colors
+    const exchangeColors = {
+        'NSE': 'badge-primary',
+        'BSE': 'badge-secondary',
+        'NFO': 'badge-accent',
+        'CDS': 'badge-info',
+        'BFO': 'badge-warning',
+        'BCD': 'badge-neutral',
+        'MCX': 'badge-success',
+        'NCDEX': 'badge-error'
     };
 
     // Initialize product type buttons
@@ -64,8 +75,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (query.length >= 2) {
                 fetch(`/scalper/search?q=${encodeURIComponent(query)}`, {
                     headers: {
-                        'X-CSRFToken': csrfToken
-                    }
+                        'X-CSRFToken': csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'same-origin'
                 })
                     .then(response => response.json())
                     .then(data => {
@@ -75,7 +88,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             div.className = 'p-3 hover:bg-base-300 cursor-pointer';
                             div.innerHTML = `
                                 <div class="font-bold">${item.symbol}</div>
-                                <div class="text-sm opacity-70">${item.exch_seg}</div>
+                                <div class="badge ${exchangeColors[item.exch_seg] || 'badge-ghost'}">${item.exch_seg}</div>
                             `;
                             div.addEventListener('click', () => {
                                 selectedInstrument = item;
@@ -95,8 +108,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update selected symbol info
     function updateSelectedSymbolInfo(instrument) {
         selectedSymbol.textContent = instrument.symbol;
-        selectedExchange.textContent = instrument.exch_seg;
-        selectedToken.textContent = instrument.token;
+        selectedExchange.innerHTML = `
+            <div class="badge ${exchangeColors[instrument.exch_seg] || 'badge-ghost'}">${instrument.exch_seg}</div>
+        `;
     }
 
     // Quantity controls
@@ -155,11 +169,20 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
+                'X-CSRFToken': csrfToken,
+                'Accept': 'application/json'
             },
+            credentials: 'same-origin',
             body: JSON.stringify(orderData)
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    throw new Error(text);
+                });
+            }
+            return response.json();
+        })
         .then(data => {
             // Log API response
             logApiActivity('Response', data);
@@ -237,8 +260,10 @@ document.addEventListener('DOMContentLoaded', function() {
     window.updateOrderHistory = function() {
         fetch('/scalper/orders', {
             headers: {
-                'X-CSRFToken': csrfToken
-            }
+                'X-CSRFToken': csrfToken,
+                'Accept': 'application/json'
+            },
+            credentials: 'same-origin'
         })
             .then(response => response.json())
             .then(orders => {
