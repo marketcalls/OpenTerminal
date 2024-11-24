@@ -2,11 +2,12 @@ import json
 import logging
 import requests
 from typing import Dict, Optional, Tuple
-from models import UserSettings, OrderLog, db
+from models import UserSettings, OrderLog, db, User, Instrument
 from word2number import w2n
 import re
-from ..utils.helpers import format_log_message
+from ..utils.helpers import format_log_message, map_product_type_to_api
 from ratelimit import limits, sleep_and_retry
+import http.client
 
 logger = logging.getLogger('voice')
 
@@ -64,7 +65,7 @@ class VoiceService:
         """Remove punctuation from text"""
         return re.sub(r'[^\w\s]', '', text)
 
-    def parse_command(self, transcript: str) -> Tuple[Optional[str], Optional[int], Optional[str]]:
+    def parse_command(self, transcript: str, settings: UserSettings) -> Tuple[Optional[str], Optional[int], Optional[str]]:
         """Parse voice command to extract order details"""
         transcript_upper = transcript.upper()
         
@@ -73,7 +74,10 @@ class VoiceService:
         logger.debug(f"Normalized Transcript: {normalized_transcript}")
         
         try:
-            for activate_command in ["MILO"]:  # Default activation command
+            # Get activation commands from settings
+            activate_commands = json.loads(settings.voice_activate_commands)
+            
+            for activate_command in activate_commands:
                 activate_command_upper = activate_command.upper()
                 pattern = r'\b' + re.escape(activate_command_upper) + r'\b'
                 match = re.search(pattern, normalized_transcript)
@@ -90,8 +94,11 @@ class VoiceService:
                         quantity_word = command_match.group(2)
                         spoken_symbol = command_match.group(3).strip()
                         
+                        # Get trading symbols mapping from settings
+                        trading_symbols = json.loads(settings.trading_symbols_mapping)
+                        
                         # Map symbol variations to standard symbol
-                        symbol = self._map_trading_symbol(spoken_symbol)
+                        symbol = self._map_trading_symbol(spoken_symbol, trading_symbols)
                         if not symbol:
                             logger.error(f"Trading symbol '{spoken_symbol}' not recognized")
                             return None, None, None
@@ -124,22 +131,22 @@ class VoiceService:
             normalized_words.append(normalized_word)
         return ' '.join(normalized_words)
 
-    def _map_trading_symbol(self, spoken_symbol: str) -> Optional[str]:
+    def _map_trading_symbol(self, spoken_symbol: str, trading_symbols: Dict) -> Optional[str]:
         """Map spoken symbol to standard trading symbol"""
         spoken_symbol = spoken_symbol.upper().strip()
         
         # Direct match with standard symbol
-        if spoken_symbol in DEFAULT_TRADING_SYMBOLS:
+        if spoken_symbol in trading_symbols:
             return spoken_symbol
             
         # Check variations
-        for standard_symbol, variations in DEFAULT_TRADING_SYMBOLS.items():
+        for standard_symbol, variations in trading_symbols.items():
             variations = [v.upper().strip() for v in variations]
             if spoken_symbol in variations:
                 return standard_symbol
                 
         # Try partial matching for longer names
-        for standard_symbol, variations in DEFAULT_TRADING_SYMBOLS.items():
+        for standard_symbol, variations in trading_symbols.items():
             variations = [v.upper().strip() for v in variations]
             # Check if spoken symbol is contained in any variation
             for variation in variations:
@@ -150,19 +157,127 @@ class VoiceService:
 
     def place_order(self, action: str, quantity: int, tradingsymbol: str, 
                    exchange: str, product_type: str, client_id: str) -> Dict:
-        """Place an order using the broker API"""
+        """Place an order using the Angel One API"""
         try:
-            # Here you would integrate with your broker's API
-            # For now, we'll return a mock response
-            order_id = f"VO_{client_id}_{tradingsymbol}_{action}_{quantity}"
-            return {
-                "status": "success",
-                "orderid": order_id,
-                "message": f"{action} order placed for {quantity} {tradingsymbol}"
+            # Get user and auth token
+            user = User.query.filter_by(client_id=client_id).first()
+            if not user:
+                raise ValueError("User not found")
+
+            auth_token = user.access_token
+            if not auth_token:
+                raise ValueError("Authentication token not found")
+
+            # Get symbol token from database
+            instrument = Instrument.query.filter_by(
+                symbol=tradingsymbol,
+                exch_seg=exchange
+            ).first()
+            
+            if not instrument:
+                raise ValueError(f"Instrument not found for symbol {tradingsymbol} on {exchange}")
+
+            # Map product type to Angel API format
+            api_product_type = map_product_type_to_api(product_type)
+            logger.info(f"Mapped product type {product_type} to {api_product_type}")
+
+            # Prepare API request
+            conn = http.client.HTTPSConnection("apiconnect.angelone.in")
+            headers = {
+                'Authorization': f'Bearer {auth_token}',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-UserType': 'USER',
+                'X-SourceID': 'WEB',
+                'X-ClientLocalIP': 'CLIENT_LOCAL_IP',
+                'X-ClientPublicIP': 'CLIENT_PUBLIC_IP',
+                'X-MACAddress': 'MAC_ADDRESS',
+                'X-PrivateKey': user.api_key
             }
+
+            # Prepare order payload according to Angel One API docs
+            payload = {
+                "variety": "NORMAL",
+                "tradingsymbol": tradingsymbol,
+                "symboltoken": instrument.token,
+                "transactiontype": action,
+                "exchange": exchange,
+                "ordertype": "MARKET",
+                "producttype": api_product_type,  # Use mapped product type
+                "duration": "DAY",
+                "quantity": str(quantity),
+                "price": "0",
+                "triggerprice": "0"
+            }
+
+            # Log request
+            logger.info(f"Placing order with Angel One API - Request: {json.dumps(payload)}")
+
+            # Make API request
+            conn.request("POST", "/rest/secure/angelbroking/order/v1/placeOrder", 
+                       json.dumps(payload), headers)
+            
+            response = conn.getresponse()
+            response_data = json.loads(response.read().decode())
+            
+            # Log response
+            logger.info(f"Angel One API Response: {json.dumps(response_data)}")
+
+            # Create order log
+            order_log = OrderLog(
+                user_id=user.id,
+                order_id=response_data.get('data', {}).get('orderid', 'UNKNOWN'),
+                symbol=tradingsymbol,
+                exchange=exchange,
+                order_type='MARKET',
+                transaction_type=action,
+                product_type=api_product_type,  # Store API product type in log
+                quantity=quantity,
+                status=response_data.get('status', 'FAILED'),
+                message=response_data.get('message', ''),
+                order_source='VOICE'
+            )
+            db.session.add(order_log)
+            db.session.commit()
+
+            if response_data.get('status'):
+                return {
+                    "status": "success",
+                    "orderid": response_data['data']['orderid'],
+                    "message": response_data['message']
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": response_data.get('message', 'Order placement failed')
+                }
+
         except Exception as e:
-            logger.error(f"Error placing order: {str(e)}")
-            return {"error": str(e)}
+            error_msg = str(e)
+            logger.error(f"Error placing order: {error_msg}")
+            
+            # Log failed order attempt
+            try:
+                if 'user' in locals() and user:
+                    order_log = OrderLog(
+                        user_id=user.id,
+                        order_id='FAILED',
+                        symbol=tradingsymbol,
+                        exchange=exchange,
+                        order_type='MARKET',
+                        transaction_type=action,
+                        product_type=api_product_type if 'api_product_type' in locals() else product_type,
+                        quantity=quantity,
+                        status='FAILED',
+                        message=error_msg,
+                        order_source='VOICE'
+                    )
+                    db.session.add(order_log)
+                    db.session.commit()
+            except Exception as log_error:
+                logger.error(f"Error logging failed order: {str(log_error)}")
+
+            return {"error": error_msg}
 
     def update_settings(self, user_id: int, settings_data: Dict) -> Dict:
         """Update user's voice trading settings"""
@@ -217,7 +332,7 @@ class VoiceService:
                 user_id=user_id,
                 voice_activate_commands='["MILO"]',
                 preferred_exchange='NSE',
-                preferred_product_type='MIS',
+                preferred_product_type='MIS',  # Default to Margin Intraday Squareoff
                 preferred_model='whisper-large-v3',
                 trading_symbols_mapping=json.dumps(DEFAULT_TRADING_SYMBOLS)
             )

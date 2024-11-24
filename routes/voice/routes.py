@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, flash, current_app
 from models import User, UserSettings
 from .services.voice_service import VoiceService
-from .utils.helpers import is_market_open
+from .utils.helpers import is_market_open, validate_audio_format, validate_exchange, validate_product_type, validate_model
 import logging
 import json
 import requests
@@ -36,6 +36,13 @@ def transcribe():
         if 'client_id' not in session:
             return jsonify({'error': 'Not authenticated'}), 401
 
+        # Get user and settings
+        user = User.query.filter_by(client_id=session['client_id']).first()
+        if not user or not user.settings:
+            return jsonify({'error': 'User settings not found'}), 404
+
+        settings = user.settings
+
         # File validation
         if 'file' not in request.files:
             logger.error("No file part in the request")
@@ -46,34 +53,26 @@ def transcribe():
             logger.error("No selected file")
             return jsonify({"error": "No selected file"}), 400
 
-        if file.mimetype not in ['audio/webm', 'audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/ogg', 'audio/flac']:
+        if not validate_audio_format(file.mimetype):
             logger.error(f"Unsupported audio format: {file.mimetype}")
             return jsonify({"error": "Unsupported audio format"}), 400
 
-        # Get and validate form data
-        exchange = request.form.get('exchange')
-        product_type = request.form.get('product_type')
-        model = request.form.get('model')
+        # Get exchange and product type from settings if not provided
+        exchange = request.form.get('exchange') or settings.preferred_exchange
+        product_type = request.form.get('product_type') or settings.preferred_product_type
+        model = request.form.get('model') or settings.preferred_model
 
-        # Validation lists
-        valid_exchanges = ["NSE", "NFO", "CDS", "BSE", "BFO", "BCD", "MCX", "NCDEX"]
-        valid_product_types = ["CNC", "NRML", "MIS"]
-        valid_models = ["whisper-large-v3", "whisper-large-v3-turbo", "distil-whisper-large-v3-en"]
-
-        # Validate form data
-        if not exchange or exchange not in valid_exchanges:
+        # Validate parameters
+        if not validate_exchange(exchange):
             return jsonify({"error": f"Invalid exchange: {exchange}"}), 400
-        if not product_type or product_type not in valid_product_types:
+        if not validate_product_type(product_type):
             return jsonify({"error": f"Invalid product type: {product_type}"}), 400
-        if not model or model not in valid_models:
+        if not validate_model(model):
             return jsonify({"error": f"Invalid model: {model}"}), 400
 
-        # Get user and settings
-        user = User.query.filter_by(client_id=session['client_id']).first()
-        if not user or not user.settings:
-            return jsonify({'error': 'User settings not found'}), 404
-
-        settings = user.settings
+        # Check if market is open
+        if not is_market_open():
+            return jsonify({"error": "Market is closed"}), 400
 
         # Process audio
         try:
@@ -91,8 +90,8 @@ def transcribe():
             transcription = voice_service.remove_punctuation(result.get('text', '').strip())
             logger.debug(f"Transcription after removing punctuation: {transcription}")
 
-            # Parse command
-            action, quantity, tradingsymbol = voice_service.parse_command(transcription)
+            # Parse command using settings
+            action, quantity, tradingsymbol = voice_service.parse_command(transcription, settings)
 
             if all([action, quantity, tradingsymbol]):
                 # Place order
