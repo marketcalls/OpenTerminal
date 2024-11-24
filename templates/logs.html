@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <!-- Statistics Section -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="stat bg-base-200 rounded-lg shadow-xl">
+            <div class="stat-title">Total Orders</div>
+            <div class="stat-value">{{ stats.total }}</div>
+            <div class="stat-desc">All trading activity</div>
+        </div>
+        <div class="stat bg-success/20 rounded-lg shadow-xl">
+            <div class="stat-title">Buy Orders</div>
+            <div class="stat-value text-success">{{ stats.by_type.BUY }}</div>
+            <div class="stat-desc">Total buy orders</div>
+        </div>
+        <div class="stat bg-error/20 rounded-lg shadow-xl">
+            <div class="stat-title">Sell Orders</div>
+            <div class="stat-value text-error">{{ stats.by_type.SELL }}</div>
+            <div class="stat-desc">Total sell orders</div>
+        </div>
+    </div>
+
+    <!-- Orders by Source -->
+    {% for source, source_orders in orders.items() %}
+    <div class="card bg-base-200 shadow-xl mb-6">
+        <div class="card-body">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="card-title text-2xl">{{ source }} Orders</h2>
+                <div class="stats shadow">
+                    <div class="stat">
+                        <div class="stat-title">Total</div>
+                        <div class="stat-value text-primary">{{ stats.by_source[source].total }}</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-title">Buy</div>
+                        <div class="stat-value text-success">{{ stats.by_source[source].BUY }}</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-title">Sell</div>
+                        <div class="stat-value text-error">{{ stats.by_source[source].SELL }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table w-full">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Symbol</th>
+                            <th>Type</th>
+                            <th>Product</th>
+                            <th>Qty</th>
+                            <th>Status</th>
+                            <th>Order ID</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in source_orders %}
+                        <tr class="hover {{ 'bg-success/10' if order.transaction_type == 'BUY' else 'bg-error/10' }}">
+                            <td>{{ order.timestamp.strftime('%d/%m/%Y %I:%M:%S %p') }}</td>
+                            <td>{{ order.symbol }}</td>
+                            <td>
+                                <div class="badge {{ 'badge-success' if order.transaction_type == 'BUY' else 'badge-error' }}">
+                                    {{ order.transaction_type }}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="badge badge-ghost">{{ order.product_type }}</div>
+                            </td>
+                            <td>{{ order.quantity }}</td>
+                            <td>
+                                <div class="badge badge-ghost">{{ order.status }}</div>
+                            </td>
+                            <td class="font-mono text-xs">{{ order.order_id }}</td>
+                            <td>{{ order.message or '' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

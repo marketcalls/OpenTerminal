@@ -2,9 +2,9 @@ from flask import Flask
 from extensions import db
 from routes import (
     auth_bp, home_bp, funds_bp, books_bp,
-    dashboard_bp, orders_bp, voice_bp
+    dashboard_bp, orders_bp, voice_bp, scalper_bp
 )
-from routes.scalper import scalper_bp  # Add scalper blueprint
+from routes.logs import logs_bp  # Add logs blueprint
 from apscheduler.schedulers.background import BackgroundScheduler
 from master_contract import download_and_store_json
 import pytz
@@ -36,7 +36,8 @@ def create_app():
         (books_bp, None),
         (orders_bp, '/api'),
         (voice_bp, '/voice'),
-        (scalper_bp, '/scalper'),  # Add scalper route
+        (scalper_bp, '/scalper'),
+        (logs_bp, '/logs'),  # Add logs route
     ]
 
     for blueprint, url_prefix in blueprints:
