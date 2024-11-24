@@ -10,6 +10,9 @@ import pytz
 from flask_wtf.csrf import CSRFProtect
 from flask_session import Session
 from werkzeug.middleware.proxy_fix import ProxyFix
+import logging
+
+logger = logging.getLogger(__name__)
 
 def create_app():
     app = Flask(__name__, static_folder='static')
@@ -31,7 +34,7 @@ def create_app():
         (funds_bp, None),
         (books_bp, None),
         (orders_bp, '/api'),
-        (voice_bp, '/voice'),
+        (voice_bp, '/voice'),  # Keep the /voice prefix
     ]
 
     for blueprint, url_prefix in blueprints:

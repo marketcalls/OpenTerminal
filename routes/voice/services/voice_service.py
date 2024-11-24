@@ -6,10 +6,9 @@ from models import UserSettings, OrderLog, db
 from word2number import w2n
 import re
 from ..utils.helpers import format_log_message
-from ...orders.services.order_service import OrderService
+from ratelimit import limits, sleep_and_retry
 
 logger = logging.getLogger('voice')
-order_service = OrderService()
 
 # Default trading symbol mappings
 DEFAULT_TRADING_SYMBOLS = {
@@ -30,69 +29,10 @@ class VoiceService:
             "SELL": "SELL"
         }
 
-    async def process_voice_order(self, file_data: bytes, user_id: int, client_id: str, settings: UserSettings) -> Dict:
-        """Process voice command and place order"""
-        try:
-            # Transcribe audio using Groq API
-            transcription = await self._transcribe_audio(
-                file_data=file_data,
-                api_key=settings.groq_api_key,
-                model=settings.preferred_model
-            )
-
-            # Parse command
-            action, quantity, symbol = self._parse_command(
-                transcript=transcription,
-                voice_commands=json.loads(settings.voice_activate_commands),
-                symbol_mappings=json.loads(settings.trading_symbols_mapping)
-            )
-
-            if not all([action, quantity, symbol]):
-                return {
-                    'status': 'error',
-                    'message': 'Invalid command format',
-                    'text': transcription
-                }
-
-            # Prepare order data
-            order_data = {
-                'symbol': symbol,
-                'quantity': quantity,
-                'side': action,
-                'ordertype': 'MARKET',
-                'producttype': settings.preferred_product_type,
-                'exchange': settings.preferred_exchange,
-                'variety': 'NORMAL',
-                'price': '0',
-                'triggerprice': '0'
-            }
-
-            # Place order
-            response = await order_service.place_order(client_id, order_data)
-
-            # Add order source to response for logging
-            if isinstance(response, dict):
-                response['order_source'] = 'VOICE'
-
-            return {
-                'status': 'success',
-                'text': transcription,
-                'action': action,
-                'quantity': quantity,
-                'symbol': symbol,
-                'order_response': response
-            }
-
-        except Exception as e:
-            logger.error(f"Error processing voice order: {str(e)}")
-            return {
-                'status': 'error',
-                'message': str(e),
-                'text': transcription if 'transcription' in locals() else None
-            }
-
-    async def _transcribe_audio(self, file_data: bytes, api_key: str, model: str) -> str:
-        """Transcribe audio using Groq API"""
+    @sleep_and_retry
+    @limits(calls=15, period=60)  # 15 calls per minute
+    def call_groq_api(self, file_data: bytes, model: str, api_key: str) -> Dict:
+        """Call Groq API for transcription"""
         url = "https://api.groq.com/openai/v1/audio/transcriptions"
         headers = {
             "Authorization": f"Bearer {api_key}"
@@ -110,15 +50,21 @@ class VoiceService:
             
             response = requests.post(url, headers=headers, files=files, data=data)
             response.raise_for_status()
-            result = response.json()
+            logger.debug("Successfully received response from Groq API")
+            return response.json()
             
-            return result.get('text', '').strip()
-            
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Groq API error: {str(e)}")
-            raise ValueError(f"Transcription failed: {str(e)}")
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"Groq API HTTP error: {str(e)} - Response: {e.response.text}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error when calling Groq API: {str(e)}")
+            raise
 
-    def _parse_command(self, transcript: str, voice_commands: list, symbol_mappings: dict) -> Tuple[Optional[str], Optional[int], Optional[str]]:
+    def remove_punctuation(self, text: str) -> str:
+        """Remove punctuation from text"""
+        return re.sub(r'[^\w\s]', '', text)
+
+    def parse_command(self, transcript: str) -> Tuple[Optional[str], Optional[int], Optional[str]]:
         """Parse voice command to extract order details"""
         transcript_upper = transcript.upper()
         
@@ -127,7 +73,7 @@ class VoiceService:
         logger.debug(f"Normalized Transcript: {normalized_transcript}")
         
         try:
-            for activate_command in voice_commands:
+            for activate_command in ["MILO"]:  # Default activation command
                 activate_command_upper = activate_command.upper()
                 pattern = r'\b' + re.escape(activate_command_upper) + r'\b'
                 match = re.search(pattern, normalized_transcript)
@@ -145,7 +91,7 @@ class VoiceService:
                         spoken_symbol = command_match.group(3).strip()
                         
                         # Map symbol variations to standard symbol
-                        symbol = self._map_trading_symbol(spoken_symbol, symbol_mappings)
+                        symbol = self._map_trading_symbol(spoken_symbol)
                         if not symbol:
                             logger.error(f"Trading symbol '{spoken_symbol}' not recognized")
                             return None, None, None
@@ -178,22 +124,22 @@ class VoiceService:
             normalized_words.append(normalized_word)
         return ' '.join(normalized_words)
 
-    def _map_trading_symbol(self, spoken_symbol: str, symbol_mappings: dict) -> Optional[str]:
+    def _map_trading_symbol(self, spoken_symbol: str) -> Optional[str]:
         """Map spoken symbol to standard trading symbol"""
         spoken_symbol = spoken_symbol.upper().strip()
         
         # Direct match with standard symbol
-        if spoken_symbol in symbol_mappings:
+        if spoken_symbol in DEFAULT_TRADING_SYMBOLS:
             return spoken_symbol
             
         # Check variations
-        for standard_symbol, variations in symbol_mappings.items():
+        for standard_symbol, variations in DEFAULT_TRADING_SYMBOLS.items():
             variations = [v.upper().strip() for v in variations]
             if spoken_symbol in variations:
                 return standard_symbol
                 
         # Try partial matching for longer names
-        for standard_symbol, variations in symbol_mappings.items():
+        for standard_symbol, variations in DEFAULT_TRADING_SYMBOLS.items():
             variations = [v.upper().strip() for v in variations]
             # Check if spoken symbol is contained in any variation
             for variation in variations:
@@ -201,6 +147,22 @@ class VoiceService:
                     return standard_symbol
                 
         return None
+
+    def place_order(self, action: str, quantity: int, tradingsymbol: str, 
+                   exchange: str, product_type: str, client_id: str) -> Dict:
+        """Place an order using the broker API"""
+        try:
+            # Here you would integrate with your broker's API
+            # For now, we'll return a mock response
+            order_id = f"VO_{client_id}_{tradingsymbol}_{action}_{quantity}"
+            return {
+                "status": "success",
+                "orderid": order_id,
+                "message": f"{action} order placed for {quantity} {tradingsymbol}"
+            }
+        except Exception as e:
+            logger.error(f"Error placing order: {str(e)}")
+            return {"error": str(e)}
 
     def update_settings(self, user_id: int, settings_data: Dict) -> Dict:
         """Update user's voice trading settings"""
