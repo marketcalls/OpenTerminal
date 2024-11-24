@@ -53,6 +53,7 @@
                             <li><a href="/holdings" class="btn btn-sm btn-ghost">Holdings</a></li>
                             <li><a href="/funds" class="btn btn-sm btn-ghost">Funds</a></li>
                             <li><a href="/voice" class="btn btn-sm btn-ghost">Voice Trading</a></li>
+                            <li><a href="/scalper" class="btn btn-sm btn-ghost">Scalper</a></li>
                         {% else %}
                             <li><a href="/" class="btn btn-sm btn-ghost">Home</a></li>
                             <li><a href="/about" class="btn btn-sm btn-ghost">About</a></li>
@@ -127,6 +128,7 @@
                     <li><a href="/holdings">Holdings</a></li>
                     <li><a href="/funds">Funds</a></li>
                     <li><a href="/voice">Voice Trading</a></li>
+                    <li><a href="/scalper">Scalper</a></li>
                     <li class="divider"></li>
                     <li><a href="/voice/settings">Voice Settings</a></li>
                     <li><a href="/logout">Logout</a></li>
@@ -166,5 +168,8 @@
 
     <!-- Add the theme.js script -->
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    
+    <!-- Additional scripts -->
+    {% block scripts %}{% endblock %}
 </body>
 </html>

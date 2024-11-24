@@ -4,6 +4,7 @@ from routes import (
     auth_bp, home_bp, funds_bp, books_bp,
     dashboard_bp, orders_bp, voice_bp
 )
+from routes.scalper import scalper_bp  # Add scalper blueprint
 from apscheduler.schedulers.background import BackgroundScheduler
 from master_contract import download_and_store_json
 import pytz
@@ -34,7 +35,8 @@ def create_app():
         (funds_bp, None),
         (books_bp, None),
         (orders_bp, '/api'),
-        (voice_bp, '/voice'),  # Keep the /voice prefix
+        (voice_bp, '/voice'),
+        (scalper_bp, '/scalper'),  # Add scalper route
     ]
 
     for blueprint, url_prefix in blueprints:
