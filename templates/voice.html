@@ -1,0 +1,432 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto p-4">
+    <h1 class="text-3xl font-bold mb-4">Voice Trading</h1>
+    
+    <!-- Instructions Section -->
+    <div class="mb-6 bg-base-200 p-4 rounded-lg">
+        <h2 class="text-xl font-semibold mb-2">How to Use:</h2>
+        <ul class="list-disc list-inside text-base-content space-y-2">
+            <li>Select your preferred <strong>Exchange</strong>, <strong>Product Type</strong>, and <strong>Model</strong>.</li>
+            <li>Click the <strong>"Start Listening"</strong> button to begin.</li>
+            <li>Speak your command clearly, e.g., "{{ settings.voice_activate_commands|replace('["', '')|replace('"]', '') }} buy 20 TCS".</li>
+            <li>After a brief pause, your order will be processed automatically.</li>
+            <li>To stop listening, click the <strong>"Listening"</strong> button.</li>
+        </ul>
+    </div>
+
+    <!-- Trading Controls -->
+    <div class="flex flex-col gap-4">
+        <!-- Trading Settings -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Exchange Selection -->
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Exchange</span>
+                </label>
+                <select id="exchange" class="select select-bordered w-full">
+                    <option value="NSE" {% if settings.preferred_exchange == 'NSE' %}selected{% endif %}>
+                        NSE: NSE Equity
+                    </option>
+                    <option value="BSE" {% if settings.preferred_exchange == 'BSE' %}selected{% endif %}>
+                        BSE: BSE Equity
+                    </option>
+                    <option value="NFO" {% if settings.preferred_exchange == 'NFO' %}selected{% endif %}>
+                        NFO: NSE F&O
+                    </option>
+                    <option value="CDS" {% if settings.preferred_exchange == 'CDS' %}selected{% endif %}>
+                        CDS: NSE Currency
+                    </option>
+                </select>
+            </div>
+
+            <!-- Product Type Selection -->
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Product Type</span>
+                </label>
+                <select id="productType" class="select select-bordered w-full">
+                    <option value="MIS" {% if settings.preferred_product_type == 'MIS' %}selected{% endif %}>
+                        MIS: Margin Intraday Square off
+                    </option>
+                    <option value="CNC" {% if settings.preferred_product_type == 'CNC' %}selected{% endif %}>
+                        CNC: Cash & Carry for equity
+                    </option>
+                    <option value="NRML" {% if settings.preferred_product_type == 'NRML' %}selected{% endif %}>
+                        NRML: Normal for F&O
+                    </option>
+                </select>
+            </div>
+
+            <!-- Model Selection -->
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Model</span>
+                </label>
+                <select id="model" class="select select-bordered w-full">
+                    <option value="whisper-large-v3" {% if settings.preferred_model == 'whisper-large-v3' %}selected{% endif %}>
+                        Whisper Large V3
+                    </option>
+                    <option value="whisper-large-v3-turbo" {% if settings.preferred_model == 'whisper-large-v3-turbo' %}selected{% endif %}>
+                        Whisper Large V3 Turbo
+                    </option>
+                    <option value="distil-whisper-large-v3-en" {% if settings.preferred_model == 'distil-whisper-large-v3-en' %}selected{% endif %}>
+                        Distil Whisper Large V3 (English)
+                    </option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Listening Controls -->
+        <div class="flex items-center gap-4">
+            <button id="toggleButton" class="btn btn-primary">
+                Start Listening
+            </button>
+            <a href="{{ url_for('voice.voice_settings') }}" class="btn btn-outline">
+                Settings
+            </a>
+        </div>
+
+        <!-- Status Display -->
+        <div class="alert alert-info">
+            <span id="status">Ready to listen...</span>
+        </div>
+
+        <!-- Flash Messages -->
+        <div id="flashMessages"></div>
+
+        <!-- Transcription History -->
+        <div class="bg-base-200 p-4 rounded-lg">
+            <h2 class="text-xl font-semibold mb-2">Transcription History:</h2>
+            <div id="transcriptionHistory" class="space-y-2"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast toast-end z-50">
+    <!-- Toasts will be added here dynamically -->
+</div>
+
+<style>
+.toast {
+    position: fixed;
+    right: 1rem;
+    top: 1rem;
+    z-index: 1000;
+}
+
+.fade-out {
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.alert {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+    animation: slide-in 0.3s ease-out;
+}
+
+@keyframes slide-in {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+</style>
+
+<script>
+// Get CSRF token from meta tag
+const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert ${
+        type === 'success' ? 'alert-success' :
+        type === 'error' ? 'alert-error' :
+        type === 'warning' ? 'alert-warning' :
+        'alert-info'
+    } mb-2`;
+
+    // Create toast content with icon
+    const icon = document.createElement('span');
+    if (type === 'success') {
+        icon.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>`;
+    } else if (type === 'error') {
+        icon.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>`;
+    }
+
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = message;
+
+    toast.appendChild(icon);
+    toast.appendChild(messageSpan);
+
+    // Add close button
+    const closeButton = document.createElement('button');
+    closeButton.className = 'btn btn-ghost btn-xs';
+    closeButton.innerHTML = '×';
+    closeButton.onclick = () => toast.remove();
+    toast.appendChild(closeButton);
+
+    // Add to container
+    const container = document.getElementById('toastContainer');
+    container.appendChild(toast);
+
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+const toggleButton = document.getElementById('toggleButton');
+const transcriptionHistoryElement = document.getElementById('transcriptionHistory');
+const statusElement = document.getElementById('status');
+const flashMessagesElement = document.getElementById('flashMessages');
+const exchangeSelect = document.getElementById('exchange');
+const productTypeSelect = document.getElementById('productType');
+const modelSelect = document.getElementById('model');
+
+let mediaRecorder;
+let isListening = false;
+let audioContext;
+let analyser;
+let silenceTimeout;
+let shouldContinueListening = false;
+
+// Configuration for silence detection
+const SILENCE_THRESHOLD = 0.01;
+const SILENCE_DURATION = 1000; // 1 second of silence
+
+function updateStatus(message) {
+    statusElement.textContent = message;
+}
+
+function addTranscriptionEntry(transcription, orderResponse, action, quantity, symbol, timestamp) {
+    const entryDiv = document.createElement('div');
+    entryDiv.className = 'bg-base-300 p-3 rounded';
+
+    const timestampP = document.createElement('p');
+    timestampP.className = 'text-xs opacity-70';
+    timestampP.textContent = `Time: ${timestamp}`;
+    entryDiv.appendChild(timestampP);
+
+    const transcriptionP = document.createElement('p');
+    transcriptionP.className = 'font-semibold';
+    transcriptionP.textContent = `Transcription: ${transcription}`;
+    entryDiv.appendChild(transcriptionP);
+
+    if (action && quantity && symbol) {
+        const commandDetailsDiv = document.createElement('div');
+        commandDetailsDiv.className = 'mt-2';
+        
+        const actionP = document.createElement('p');
+        actionP.className = 'text-sm';
+        actionP.textContent = `Action: ${action}`;
+        commandDetailsDiv.appendChild(actionP);
+        
+        const quantityP = document.createElement('p');
+        quantityP.className = 'text-sm';
+        quantityP.textContent = `Quantity: ${quantity}`;
+        commandDetailsDiv.appendChild(quantityP);
+        
+        const symbolP = document.createElement('p');
+        symbolP.className = 'text-sm';
+        symbolP.textContent = `Symbol: ${symbol}`;
+        commandDetailsDiv.appendChild(symbolP);
+        
+        entryDiv.appendChild(commandDetailsDiv);
+    }
+
+    if (orderResponse) {
+        const orderP = document.createElement('p');
+        if (orderResponse.error) {
+            orderP.className = 'text-warning';
+            orderP.textContent = `Order Error: ${orderResponse.error}`;
+            showToast(orderResponse.error, 'error');
+        } else {
+            orderP.className = action?.toLowerCase() === 'buy' ? 'text-success' : 'text-error';
+            orderP.textContent = `Order Placed - ID: ${orderResponse.orderid}`;
+            showToast(`${action} order placed successfully`, 'success');
+        }
+        entryDiv.appendChild(orderP);
+    }
+
+    transcriptionHistoryElement.insertBefore(entryDiv, transcriptionHistoryElement.firstChild);
+}
+
+async function sendAudioToServer(audioBlob) {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'audio.webm');
+    formData.append('exchange', exchangeSelect.value);
+    formData.append('product_type', productTypeSelect.value);
+    formData.append('model', modelSelect.value);
+
+    try {
+        updateStatus('Processing audio...');
+        const response = await fetch('/voice/transcribe', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken  // Add CSRF token to headers
+            },
+            body: formData,
+            credentials: 'same-origin'  // Required for CSRF
+        });
+
+        let data;
+        try {
+            const text = await response.text();
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error('Server response:', text);
+                throw new Error('Invalid JSON response from server');
+            }
+        } catch (e) {
+            throw new Error('Failed to parse server response');
+        }
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to process audio');
+        }
+
+        const timestamp = new Date().toLocaleString();
+        addTranscriptionEntry(
+            data.text,
+            data.order_response,
+            data.action,
+            data.quantity,
+            data.symbol,
+            timestamp
+        );
+        updateStatus('Transcription and order processing complete');
+    } catch (error) {
+        console.error('Error processing audio:', error);
+        updateStatus('Ready to listen...');
+        showToast(error.message, 'error');
+    }
+}
+
+async function startListening() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+        let audioChunks = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+                detectSilence();
+            }
+        };
+
+        mediaRecorder.onstop = async () => {
+            if (audioChunks.length > 0) {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                await sendAudioToServer(audioBlob);
+            }
+            audioChunks = [];
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+                analyser = null;
+            }
+            if (shouldContinueListening) {
+                startListening();
+            }
+        };
+
+        mediaRecorder.start(250);
+        isListening = true;
+        shouldContinueListening = true;
+        toggleButton.textContent = 'Listening...';
+        toggleButton.classList.remove('btn-primary');
+        toggleButton.classList.add('btn-error');
+        updateStatus('Listening...');
+        initializeAudioContext(stream);
+    } catch (error) {
+        console.error('Error accessing microphone:', error);
+        updateStatus('Error accessing microphone');
+        showToast('Failed to access the microphone. Please ensure you have given permission and try again.', 'error');
+    }
+}
+
+function stopListening() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        shouldContinueListening = false;
+        mediaRecorder.stop();
+        isListening = false;
+        toggleButton.textContent = 'Start Listening';
+        toggleButton.classList.remove('btn-error');
+        toggleButton.classList.add('btn-primary');
+        updateStatus('Stopped listening');
+        clearTimeout(silenceTimeout);
+    }
+}
+
+function initializeAudioContext(stream) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioContext.createMediaStreamSource(stream);
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 2048;
+    source.connect(analyser);
+}
+
+function detectSilence() {
+    if (!analyser) return;
+
+    const bufferLength = analyser.fftSize;
+    const dataArray = new Uint8Array(bufferLength);
+    analyser.getByteTimeDomainData(dataArray);
+
+    let sum = 0;
+    for (let i = 0; i < bufferLength; i++) {
+        const sample = dataArray[i] / 128 - 1;
+        sum += sample * sample;
+    }
+    const rms = Math.sqrt(sum / bufferLength);
+    const silence = rms < SILENCE_THRESHOLD;
+
+    if (silence) {
+        if (!silenceTimeout) {
+            silenceTimeout = setTimeout(() => {
+                stopRecordingDueToSilence();
+            }, SILENCE_DURATION);
+        }
+    } else {
+        clearTimeout(silenceTimeout);
+        silenceTimeout = null;
+    }
+}
+
+function stopRecordingDueToSilence() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
+}
+
+toggleButton.addEventListener('click', () => {
+    if (isListening) {
+        stopListening();
+    } else {
+        startListening();
+    }
+});
+</script>
+{% endblock %}

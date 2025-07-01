@@ -148,3 +148,29 @@ def check_redis_health():
             'error': str(e),
             'timestamp': datetime.now().isoformat()
         }
+    
+# Add new Redis methods for order management
+class RedisOrderManager:
+    """Helper class for managing order data in Redis"""
+    
+    @staticmethod
+    def store_order_data(order_id, order_data, expiry=86400):
+        """Store order data in Redis"""
+        try:
+            key = f"order:{order_id}"
+            redis_client.setex(key, expiry, json.dumps(order_data))
+            return True
+        except Exception as e:
+            print(f"Error storing order data in Redis: {str(e)}")
+            return False
+
+    @staticmethod
+    def get_order_data(order_id):
+        """Get order data from Redis"""
+        try:
+            key = f"order:{order_id}"
+            data = redis_client.get(key)
+            return json.loads(data) if data else None
+        except Exception as e:
+            print(f"Error getting order data from Redis: {str(e)}")
+            return None

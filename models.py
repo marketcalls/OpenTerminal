@@ -21,6 +21,7 @@ class User(db.Model):
     
     # Relationships
     watchlists = db.relationship('Watchlist', backref='user', lazy=True)
+    settings = db.relationship('UserSettings', backref='user', uselist=False, lazy=True)
 
     def __repr__(self):
         return f'<User {self.username}>'
@@ -35,7 +36,28 @@ class User(db.Model):
             'has_active_session': bool(self.access_token and self.feed_token)
         }
 
-# No changes needed to Watchlist model
+class UserSettings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
+    
+    # Voice Trading Settings
+    voice_activate_commands = db.Column(db.String(500), nullable=False, default='["MILO"]')
+    groq_api_key = db.Column(db.String(100), nullable=True)
+    preferred_exchange = db.Column(db.String(10), nullable=False, default='NSE')
+    preferred_product_type = db.Column(db.String(10), nullable=False, default='MIS')
+    preferred_model = db.Column(db.String(50), nullable=False, default='whisper-large-v3')
+    
+    # Trading Symbol Mappings stored as JSON string
+    trading_symbols_mapping = db.Column(db.Text, nullable=False, default='{}')
+    
+    # Watchlist Display Settings
+    show_ltp_change = db.Column(db.Boolean, default=True)
+    show_ltp_change_percent = db.Column(db.Boolean, default=True)
+    show_holdings = db.Column(db.Boolean, default=True)
+
+    def __repr__(self):
+        return f'<UserSettings for user_id {self.user_id}>'
+
 class Watchlist(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -45,7 +67,6 @@ class Watchlist(db.Model):
     def __repr__(self):
         return f'<Watchlist {self.name}>'
 
-# No changes needed to WatchlistItem model
 class WatchlistItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     watchlist_id = db.Column(db.Integer, db.ForeignKey('watchlist.id'), nullable=False)
@@ -62,7 +83,6 @@ class WatchlistItem(db.Model):
     def __repr__(self):
         return f'<WatchlistItem {self.symbol}>'
 
-# No changes needed to Instrument model
 class Instrument(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     token = db.Column(db.String(50), nullable=False)
@@ -77,3 +97,38 @@ class Instrument(db.Model):
 
     def __repr__(self):
         return f'<Instrument {self.symbol}>'
+
+class OrderLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    order_id = db.Column(db.String(100), nullable=False)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    symbol = db.Column(db.String(50), nullable=False)
+    exchange = db.Column(db.String(10), nullable=False)
+    order_type = db.Column(db.String(20), nullable=False)
+    transaction_type = db.Column(db.String(10), nullable=False)
+    product_type = db.Column(db.String(20), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    price = db.Column(db.Float, nullable=True)
+    trigger_price = db.Column(db.Float, nullable=True)
+    status = db.Column(db.String(20), nullable=False)
+    message = db.Column(db.String(255), nullable=True)
+    order_source = db.Column(db.String(20), nullable=False, default='REGULAR')  # Added field for order source
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'timestamp': self.timestamp.isoformat(),
+            'symbol': self.symbol,
+            'exchange': self.exchange,
+            'order_type': self.order_type,
+            'transaction_type': self.transaction_type,
+            'product_type': self.product_type,
+            'quantity': self.quantity,
+            'price': self.price,
+            'trigger_price': self.trigger_price,
+            'status': self.status,
+            'message': self.message,
+            'order_source': self.order_source
+        }

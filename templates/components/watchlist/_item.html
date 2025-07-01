@@ -1,0 +1,45 @@
+<!-- templates/watchlist/_item.html -->
+<li class="watchlist-item bg-base-100 rounded-lg overflow-hidden shadow-sm relative group" 
+    id="item-{{ item.token }}"
+    data-token="{{ item.token }}"
+    data-symbol="{{ item.symbol }}"
+    data-exch-seg="{{ item.exch_seg }}"
+    data-exch-type="{{ {'NSE': 1, 'BSE': 3, 'MCX': 5}[item.exch_seg] }}"
+    data-lot-size="{{ item.lotsize }}"
+    data-tick-size="{{ item.tick_size }}"
+    data-instrument-type="{{ item.instrumenttype }}">
+    
+    <!-- Symbol Header -->
+    <div class="flex justify-between items-center p-3 hover:bg-base-200 cursor-pointer symbol-header"
+         onclick="toggleDepth('{{ item.token }}')">
+        <div class="flex flex-col">
+            <span class="font-medium">{{ item.symbol }}</span>
+            <span class="text-xs text-base-content/70">{{ item.exch_seg }}</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <!-- templates/components/watchlist/_item.html -->
+            <div class="text-right">
+                <div class="font-medium ltp">--</div>
+                <div class="flex items-center gap-1 text-xs">
+                    <span class="change {% if settings.show_ltp_change %}visible{% else %}hidden{% endif %}">0.00</span>
+                    <span class="change-percent {% if settings.show_ltp_change_percent %}visible{% else %}hidden{% endif %}">(0.00%)</span>
+                </div>
+            </div>
+            <!-- Buy/Sell Buttons -->
+            <div class="order-buttons hidden">
+                <button class="btn btn-xs bg-green-600 hover:bg-green-700 text-white border-none px-2 py-0.5 buy-btn">B</button>
+                <button class="btn btn-xs bg-red-600 hover:bg-red-700 text-white border-none px-2 py-0.5 sell-btn">S</button>
+            </div>
+            <button class="btn btn-ghost btn-xs remove-item-btn" 
+                    data-item-id="{{ item.id }}"
+                    onclick="event.stopPropagation()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Market Depth Section -->
+    {% include 'watchlist/_market_depth.html' %}
+</li>

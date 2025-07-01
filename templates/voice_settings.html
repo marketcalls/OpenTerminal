@@ -1,0 +1,407 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<!-- Toast Container -->
+<div id="toastContainer" class="toast toast-end z-50">
+    <!-- Toasts will be added here dynamically -->
+</div>
+
+<div class="max-w-4xl mx-auto p-4">
+    <h1 class="text-3xl font-bold mb-4">Voice Trading Settings</h1>
+
+    <form id="settingsForm" class="space-y-6">
+        <!-- Groq API Key -->
+        <div class="form-control">
+            <label class="label">
+                <span class="label-text">Groq API Key</span>
+            </label>
+            <input type="password" id="groqApiKey" name="groq_api_key" 
+                   class="input input-bordered w-full" 
+                   value="{{ settings.groq_api_key or '' }}"
+                   placeholder="Enter your Groq API key">
+            <label class="label">
+                <span class="label-text-alt">Required for voice transcription</span>
+            </label>
+        </div>
+
+        <!-- Voice Activation Commands -->
+        <div class="form-control">
+            <label class="label">
+                <span class="label-text">Voice Activation Commands</span>
+            </label>
+            <input type="text" id="voiceCommands" name="voice_activate_commands"
+                   class="input input-bordered w-full"
+                   value="{{ voice_commands|join(', ') }}"
+                   placeholder="MILO">
+            <label class="label">
+                <span class="label-text-alt">Comma-separated list of activation words</span>
+            </label>
+        </div>
+
+        <!-- Preferred Exchange -->
+        <div class="form-control">
+            <label class="label">
+                <span class="label-text">Default Exchange</span>
+            </label>
+            <select id="exchange" name="preferred_exchange" class="select select-bordered w-full">
+                <option value="NSE" {% if settings.preferred_exchange == 'NSE' %}selected{% endif %}>
+                    NSE: NSE Equity
+                </option>
+                <option value="BSE" {% if settings.preferred_exchange == 'BSE' %}selected{% endif %}>
+                    BSE: BSE Equity
+                </option>
+                <option value="NFO" {% if settings.preferred_exchange == 'NFO' %}selected{% endif %}>
+                    NFO: NSE F&O
+                </option>
+                <option value="CDS" {% if settings.preferred_exchange == 'CDS' %}selected{% endif %}>
+                    CDS: NSE Currency
+                </option>
+            </select>
+        </div>
+
+        <!-- Product Type -->
+        <div class="form-control">
+            <label class="label">
+                <span class="label-text">Default Product Type</span>
+            </label>
+            <select id="productType" name="preferred_product_type" class="select select-bordered w-full">
+                <option value="MIS" {% if settings.preferred_product_type == 'MIS' %}selected{% endif %}>
+                    MIS: Margin Intraday Square off
+                </option>
+                <option value="CNC" {% if settings.preferred_product_type == 'CNC' %}selected{% endif %}>
+                    CNC: Cash & Carry for equity
+                </option>
+                <option value="NRML" {% if settings.preferred_product_type == 'NRML' %}selected{% endif %}>
+                    NRML: Normal for F&O
+                </option>
+            </select>
+        </div>
+
+        <!-- Model Selection -->
+        <div class="form-control">
+            <label class="label">
+                <span class="label-text">Transcription Model</span>
+            </label>
+            <select id="model" name="preferred_model" class="select select-bordered w-full">
+                <option value="whisper-large-v3" 
+                        {% if settings.preferred_model == 'whisper-large-v3' %}selected{% endif %}>
+                    Whisper Large V3
+                </option>
+                <option value="whisper-large-v3-turbo"
+                        {% if settings.preferred_model == 'whisper-large-v3-turbo' %}selected{% endif %}>
+                    Whisper Large V3 Turbo
+                </option>
+                <option value="distil-whisper-large-v3-en"
+                        {% if settings.preferred_model == 'distil-whisper-large-v3-en' %}selected{% endif %}>
+                    Distil Whisper Large V3 (English)
+                </option>
+            </select>
+        </div>
+
+        <!-- Trading Symbol Mappings -->
+        <div class="form-control">
+            <label class="label">
+                <span class="label-text">Trading Symbol Mappings</span>
+                <span class="label-text-alt">Map spoken variations to standard trading symbols</span>
+            </label>
+            
+            <!-- Symbol Mappings Table -->
+            <div class="overflow-x-auto bg-base-200 rounded-lg p-4 mb-4">
+                <table class="table w-full">
+                    <thead>
+                        <tr>
+                            <th>Standard Symbol</th>
+                            <th>Spoken Variations</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="symbolMappingsBody">
+                        <!-- Dynamic rows will be added here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Add New Symbol Mapping -->
+            <div class="flex gap-4 items-start bg-base-200 p-4 rounded-lg">
+                <div class="form-control flex-1">
+                    <input type="text" id="newSymbol" 
+                           class="input input-bordered input-sm" 
+                           placeholder="Standard Symbol (e.g., INFY-EQ)">
+                </div>
+                <div class="form-control flex-2">
+                    <input type="text" id="newVariations" 
+                           class="input input-bordered input-sm" 
+                           placeholder="Variations (comma separated)">
+                </div>
+                <button type="button" id="addMapping" class="btn btn-primary btn-sm">
+                    Add Mapping
+                </button>
+            </div>
+
+            <!-- Preset Mappings -->
+            <div class="mt-4">
+                <label class="label">
+                    <span class="label-text">Quick Add Presets</span>
+                </label>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-sm btn-outline" 
+                            onclick="addPresetMapping('BHEL-EQ', ['BHEL', 'B H E L'])">
+                        + BHEL-EQ
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline"
+                            onclick="addPresetMapping('INFY-EQ', ['INFI', 'INFY', 'INFE', 'I N F Y'])">
+                        + INFY-EQ
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline"
+                            onclick="addPresetMapping('RELIANCE-EQ', ['RELIANCE', 'RELIANC', 'RILLIANS'])">
+                        + RELIANCE-EQ
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline"
+                            onclick="addPresetMapping('TCS-EQ', ['TCS', 'T C S'])">
+                        + TCS-EQ
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Save Button -->
+        <div class="form-control mt-6">
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+        </div>
+    </form>
+</div>
+
+<style>
+.toast {
+    position: fixed;
+    right: 1rem;
+    top: 1rem;
+    z-index: 1000;
+}
+
+.fade-out {
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.alert {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+    animation: slide-in 0.3s ease-out;
+}
+
+@keyframes slide-in {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const symbolMappingsBody = document.getElementById('symbolMappingsBody');
+    const addMappingButton = document.getElementById('addMapping');
+    const newSymbolInput = document.getElementById('newSymbol');
+    const newVariationsInput = document.getElementById('newVariations');
+    const form = document.getElementById('settingsForm');
+
+    // Initialize symbol mappings from server data
+    let symbolMappings = {};
+    try {
+        symbolMappings = JSON.parse('{{ trading_symbols|tojson|safe }}' || '{}');
+    } catch (e) {
+        console.error('Error parsing initial symbol mappings:', e);
+        symbolMappings = {};
+    }
+
+    // Toast notification system
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `alert ${
+            type === 'success' ? 'alert-success' :
+            type === 'error' ? 'alert-error' :
+            type === 'warning' ? 'alert-warning' :
+            'alert-info'
+        } mb-2`;
+
+        // Create toast content with icon
+        const icon = document.createElement('span');
+        if (type === 'success') {
+            icon.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>`;
+        } else if (type === 'error') {
+            icon.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>`;
+        }
+
+        const messageSpan = document.createElement('span');
+        messageSpan.textContent = message;
+
+        toast.appendChild(icon);
+        toast.appendChild(messageSpan);
+
+        // Add close button
+        const closeButton = document.createElement('button');
+        closeButton.className = 'btn btn-ghost btn-xs';
+        closeButton.innerHTML = '×';
+        closeButton.onclick = () => toast.remove();
+        toast.appendChild(closeButton);
+
+        // Add to container
+        const container = document.getElementById('toastContainer');
+        container.appendChild(toast);
+
+        // Auto-remove after 3 seconds
+        setTimeout(() => {
+            toast.classList.add('fade-out');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    function createMappingRow(symbol, variations) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="font-mono">${symbol}</td>
+            <td>
+                <div class="flex flex-wrap gap-1">
+                    ${variations.map(v => `
+                        <span class="badge badge-neutral">${v}</span>
+                    `).join('')}
+                </div>
+            </td>
+            <td>
+                <div class="flex gap-2">
+                    <button type="button" class="btn btn-ghost btn-xs" onclick="editMapping('${symbol}')">
+                        Edit
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-xs text-error" onclick="removeMapping('${symbol}')">
+                        Delete
+                    </button>
+                </div>
+            </td>
+        `;
+        return tr;
+    }
+
+    function loadSymbolMappings() {
+        symbolMappingsBody.innerHTML = '';
+        Object.entries(symbolMappings).forEach(([symbol, variations]) => {
+            symbolMappingsBody.appendChild(createMappingRow(symbol, variations));
+        });
+    }
+
+    window.addMapping = function(symbol, variations) {
+        symbol = symbol.trim().toUpperCase();
+        if (!symbol) {
+            showToast('Symbol cannot be empty', 'warning');
+            return;
+        }
+
+        const variationsArray = Array.isArray(variations) 
+            ? variations 
+            : variations.split(',').map(v => v.trim()).filter(v => v);
+
+        if (variationsArray.length === 0) {
+            showToast('At least one variation is required', 'warning');
+            return;
+        }
+
+        symbolMappings[symbol] = variationsArray;
+        loadSymbolMappings();
+        saveSettings();
+        showToast(`Added mapping for ${symbol}`, 'success');
+
+        if (symbol === newSymbolInput.value.trim().toUpperCase()) {
+            newSymbolInput.value = '';
+            newVariationsInput.value = '';
+        }
+    }
+
+    window.addPresetMapping = function(symbol, variations) {
+        addMapping(symbol, variations);
+    }
+
+    window.editMapping = function(symbol) {
+        const variations = symbolMappings[symbol];
+        newSymbolInput.value = symbol;
+        newVariationsInput.value = variations.join(', ');
+        removeMapping(symbol);
+    }
+
+    window.removeMapping = function(symbol) {
+        delete symbolMappings[symbol];
+        loadSymbolMappings();
+        saveSettings();
+        showToast(`Removed mapping for ${symbol}`, 'info');
+    }
+
+    addMappingButton.onclick = () => {
+        const symbol = newSymbolInput.value;
+        const variations = newVariationsInput.value;
+        addMapping(symbol, variations);
+    };
+
+    async function saveSettings() {
+        const voiceCommands = document.getElementById('voiceCommands')
+            .value
+            .split(',')
+            .map(cmd => cmd.trim())
+            .filter(cmd => cmd);
+
+        const formData = {
+            groq_api_key: document.getElementById('groqApiKey').value,
+            voice_activate_commands: voiceCommands,
+            preferred_exchange: document.getElementById('exchange').value,
+            preferred_product_type: document.getElementById('productType').value,
+            preferred_model: document.getElementById('model').value,
+            trading_symbols_mapping: symbolMappings
+        };
+
+        try {
+            const response = await fetch('/voice/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify(formData)
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+                if (result.settings) {
+                    symbolMappings = result.settings.trading_symbols_mapping;
+                    loadSymbolMappings();
+                }
+                showToast('Settings saved successfully', 'success');
+            } else {
+                throw new Error(result.error || 'Failed to save settings');
+            }
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        await saveSettings();
+    };
+
+    // Initialize symbol mappings
+    loadSymbolMappings();
+});
+</script>
+{% endblock %}

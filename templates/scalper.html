@@ -1,0 +1,156 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <!-- Trading Controls -->
+        <div class="lg:col-span-4">
+            <!-- Trade Statistics -->
+            <div class="grid grid-cols-3 gap-4 mb-4">
+                <div class="stat bg-base-200 rounded-lg shadow-xl">
+                    <div class="stat-title">Total Orders</div>
+                    <div class="stat-value" id="totalOrders">0</div>
+                    <div class="stat-desc">Today's activity</div>
+                </div>
+                <div class="stat bg-success/20 rounded-lg shadow-xl">
+                    <div class="stat-title">Buy Orders</div>
+                    <div class="stat-value text-success" id="buyOrders">0</div>
+                    <div class="stat-desc">Successfully executed</div>
+                </div>
+                <div class="stat bg-error/20 rounded-lg shadow-xl">
+                    <div class="stat-title">Sell Orders</div>
+                    <div class="stat-value text-error" id="sellOrders">0</div>
+                    <div class="stat-desc">Successfully executed</div>
+                </div>
+            </div>
+
+            <div class="card bg-base-200 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title text-2xl mb-4">Scalping Terminal</h2>
+                    
+                    <!-- Symbol Search -->
+                    <div class="form-control w-full">
+                        <label class="label">
+                            <span class="label-text text-lg">Search Symbol</span>
+                        </label>
+                        <div class="relative">
+                            <input type="text" id="symbolSearch" placeholder="Enter symbol name..." 
+                                   class="input input-bordered w-full pr-16" />
+                            <div id="searchResults" class="absolute z-50 w-full mt-1 rounded-lg bg-base-100 shadow-lg"></div>
+                        </div>
+                    </div>
+
+                    <!-- Selected Symbol Info -->
+                    <div class="bg-base-300 rounded-lg p-4 mt-4">
+                        <h3 class="font-bold mb-2">Selected Instrument</h3>
+                        <div id="selectedSymbolInfo" class="space-y-2">
+                            <div class="flex justify-between">
+                                <span>Symbol:</span>
+                                <span id="selectedSymbol" class="font-mono">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Exchange:</span>
+                                <span id="selectedExchange" class="font-mono">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Product Type Selection -->
+                    <div class="form-control w-full mt-4">
+                        <label class="label">
+                            <span class="label-text text-lg">Product Type</span>
+                        </label>
+                        <div class="btn-group w-full">
+                            <input type="radio" name="productType" data-title="MIS" value="MIS" class="btn flex-1" checked />
+                            <input type="radio" name="productType" data-title="CNC" value="CNC" class="btn flex-1" />
+                            <input type="radio" name="productType" data-title="NRML" value="NRML" class="btn flex-1" />
+                        </div>
+                        <div class="label">
+                            <span class="label-text-alt">MIS: Intraday | CNC: Delivery | NRML: Normal</span>
+                        </div>
+                    </div>
+
+                    <!-- Quantity Control -->
+                    <div class="form-control w-full mt-4">
+                        <label class="label">
+                            <span class="label-text text-lg">Quantity</span>
+                        </label>
+                        <div class="join w-full">
+                            <button class="btn join-item" onclick="decrementQty()">-</button>
+                            <input type="number" id="quantity" value="1" class="input input-bordered join-item w-full text-center" />
+                            <button class="btn join-item" onclick="incrementQty()">+</button>
+                        </div>
+                    </div>
+
+                    <!-- Keyboard Controls Info -->
+                    <div class="alert alert-info mt-4">
+                        <div>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current flex-shrink-0 w-6 h-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <div class="flex flex-col">
+                                <span class="font-bold">Keyboard Controls</span>
+                                <span>↑ Up Arrow = Buy Market</span>
+                                <span>↓ Down Arrow = Sell Market</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API Activity Log -->
+            <div class="card bg-base-200 shadow-xl mt-4">
+                <div class="card-body">
+                    <h2 class="card-title text-xl mb-4">
+                        API Activity
+                        <div class="badge badge-primary" id="apiStatus">Ready</div>
+                    </h2>
+                    <div id="apiLog" class="bg-base-300 rounded-lg p-4 h-64 overflow-y-auto font-mono text-sm">
+                        <div class="text-center text-base-content/50">Waiting for orders...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order History -->
+        <div class="lg:col-span-8">
+            <div class="card bg-base-200 shadow-xl">
+                <div class="card-body">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="card-title text-2xl">Order History</h2>
+                        <button class="btn btn-ghost btn-sm" onclick="updateOrderHistory()">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="table w-full" id="orderHistory">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Symbol</th>
+                                    <th>Type</th>
+                                    <th>Product</th>
+                                    <th>Qty</th>
+                                    <th>Status</th>
+                                    <th>Order ID</th>
+                                    <th>Message</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast toast-end"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/modules/scalper.js') }}"></script>
+{% endblock %}

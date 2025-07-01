@@ -55,7 +55,7 @@ def download_and_store_json(app):
                     lotsize=int(instrument['lotsize']),
                     instrumenttype=instrument['instrumenttype'],
                     exch_seg=instrument['exch_seg'],
-                    tick_size=float(instrument['tick_size']) / 100
+                    tick_size=float(instrument['tick_size']) / 10000000 if instrument['exch_seg'] == 'CDS' else float(instrument['tick_size']) / 100
                 ) for instrument in filtered_instruments_data
             ]
 

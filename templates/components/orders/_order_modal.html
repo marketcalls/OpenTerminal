@@ -1,0 +1,239 @@
+<!-- templates/components/orders/_order_modal.html -->
+<dialog id="order-modal" class="modal">
+    <div class="modal-box bg-base-300 max-w-lg">
+        <!-- Header -->
+        <div class="flex justify-between items-start mb-4">
+            <!-- Symbol Info -->
+            <div>
+                <div class="flex items-center gap-3">
+                    <h3 class="text-lg font-bold symbol-name">--</h3>
+                    <span class="text-sm text-base-content/70 exchange-name">--</span>
+                </div>
+                <div id="lot-info" class="text-xs text-base-content/70 mt-1">
+                    Lot Size: <span class="lot-size">1</span> | Tick: <span class="tick-size">0.05</span>
+                </div>
+            </div>
+            <!-- Price Info -->
+            <div class="text-right">
+                <div class="text-lg font-bold current-price">--</div>
+                <div class="text-sm price-change">0.00 (0.00%)</div>
+            </div>
+            <!-- Close Button -->
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 close-modal">✕</button>
+        </div>
+
+        <!-- Buy/Sell Toggle -->
+        <div class="join w-full mb-4">
+            <button class="join-item btn flex-1 buy-toggle">BUY</button>
+            <button class="join-item btn flex-1 sell-toggle">SELL</button>
+        </div>
+
+        <!-- Order Type Tabs -->
+        <div class="tabs tabs-boxed mb-4">
+            <button class="tab order-tab tab-active" data-type="normal">Normal</button>
+            <button class="tab order-tab" data-type="stoploss">Stop Loss</button>
+        </div>
+
+        <!-- Order Form -->
+        <form id="order-form" class="space-y-4">
+            <input type="hidden" name="symbol" id="form-symbol">
+            <input type="hidden" name="token" id="form-token">
+            <input type="hidden" name="exchange" id="form-exchange">
+            <input type="hidden" name="variety" value="NORMAL">
+            
+            <!-- Product Type -->
+            <div>
+                <label class="text-sm font-medium mb-2 block">Product Type</label>
+                <div class="join w-full">
+                    <label class="join-item btn btn-sm flex-1" role="button">
+                        <input type="radio" name="producttype" 
+                               value="INTRADAY" 
+                               class="hidden" 
+                               checked 
+                               onchange="updateButtonStates(this)" />
+                        <span>INTRADAY</span>
+                    </label>
+                    
+                    <label class="join-item btn btn-sm flex-1" role="button">
+                        <input type="radio" name="producttype" 
+                               value="DELIVERY" 
+                               class="hidden"
+                               onchange="updateButtonStates(this)" />
+                        <span class="delivery-text">DELIVERY</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Quantity -->
+            <div>
+                <div class="flex justify-between mb-2">
+                    <label class="text-sm font-medium quantity-label">Quantity</label>
+                    <div class="text-xs text-base-content/70 total-quantity">
+                        Total Qty: <span id="total-qty">0</span>
+                    </div>
+                </div>
+                <div class="join w-full">
+                    <button type="button" class="join-item btn btn-sm qty-decrement">−</button>
+                    <input type="number" 
+                           name="quantity" 
+                           class="join-item input input-bordered input-sm w-full text-center"
+                           value="1" />
+                    <button type="button" class="join-item btn btn-sm qty-increment">+</button>
+                </div>
+            </div>
+
+            <!-- Price Section -->
+            <div class="price-section">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm font-medium">Price</label>
+                        <span class="badge badge-sm">LTP: <span class="current-ltp">0.00</span></span>
+                    </div>
+                    <div class="join">
+                        <label class="join-item btn btn-xs" role="button">
+                            <input type="radio" name="ordertype" 
+                                   value="LIMIT" 
+                                   class="hidden" 
+                                   checked 
+                                   onchange="updateButtonStates(this)" />
+                            <span>LIMIT</span>
+                        </label>
+                        <label class="join-item btn btn-xs" role="button">
+                            <input type="radio" name="ordertype" 
+                                   value="MARKET" 
+                                   class="hidden"
+                                   onchange="updateButtonStates(this)" />
+                            <span>MARKET</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Price Controls -->
+                <div class="space-y-1">
+                    <div class="join w-full">
+                        <button type="button" class="join-item btn btn-sm price-decrement">−</button>
+                        <input type="number" 
+                               name="price" 
+                               step="0.05"
+                               class="join-item input input-bordered input-sm w-full text-center price-input"
+                               autocomplete="off"
+                               inputmode="decimal" />
+                        <button type="button" class="join-item btn btn-sm price-increment">+</button>
+                    </div>
+
+                    <!-- Quick Price Adjustments -->
+                    <!-- <div class="grid grid-cols-4 gap-1">
+                        <button type="button" class="btn btn-xs price-adjust" data-adjust="-1">−1.00</button>
+                        <button type="button" class="btn btn-xs price-adjust" data-adjust="-0.5">−0.50</button>
+                        <button type="button" class="btn btn-xs price-adjust" data-adjust="+0.5">+0.50</button>
+                        <button type="button" class="btn btn-xs price-adjust" data-adjust="+1">+1.00</button>
+                    </div> -->
+                </div>
+            </div>
+
+            <!-- Stop Loss Fields (Initially Hidden) -->
+            <div id="stoploss-fields" class="hidden">
+                <label class="text-sm font-medium mb-2 block">Trigger Price</label>
+                <div class="join w-full">
+                    <button type="button" class="join-item btn btn-sm trigger-decrement">−</button>
+                    <input type="number" 
+                           name="triggerprice" 
+                           step="0.05"
+                           class="join-item input input-bordered input-sm w-full text-center" />
+                    <button type="button" class="join-item btn btn-sm trigger-increment">+</button>
+                </div>
+            </div>
+
+            <!-- Market Depth Toggle -->
+            <button type="button" 
+                    class="market-depth-toggle btn btn-sm btn-ghost w-full flex justify-between items-center">
+                <span>Market Depth & Quote</span>
+                <svg xmlns="http://www.w3.org/2000/svg" 
+                     class="h-4 w-4 market-depth-icon transition-transform duration-200" 
+                     fill="none" 
+                     viewBox="0 0 24 24" 
+                     stroke="currentColor">
+                    <path stroke-linecap="round" 
+                          stroke-linejoin="round" 
+                          stroke-width="2" 
+                          d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+
+            <!-- Market Depth Content -->
+            <div id="order-market-depth" class="hidden transition-all duration-200 border rounded-lg p-3 bg-base-200">
+                <!-- Market Stats -->
+                <div class="grid grid-cols-4 gap-2 text-xs border-b border-base-content/10 pb-2 mb-2">
+                    <div>O: <span class="open">--</span></div>
+                    <div>H: <span class="high">--</span></div>
+                    <div>L: <span class="low">--</span></div>
+                    <div>C: <span class="close">--</span></div>
+                </div>
+
+                <!-- Depth Table -->
+                <table class="w-full text-xs">
+                    <thead class="text-base-content/70">
+                        <tr>
+                            <th class="py-1 text-right">Qty</th>
+                            <th class="py-1 text-right">Orders</th>
+                            <th class="py-1 text-right text-green-500">Bid</th>
+                            <th class="py-1 text-right text-red-500">Ask</th>
+                            <th class="py-1 text-right">Orders</th>
+                            <th class="py-1 text-right">Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody class="depth-data">
+                        <!-- Depth data will be populated by JS -->
+                    </tbody>
+                </table>
+
+                <!-- Volume Stats -->
+                <div class="flex justify-between text-xs text-base-content/70 pt-2 mt-2 border-t border-base-content/10">
+                    <div>Vol: <span class="volume">--</span></div>
+                    <div>
+                        Buy: <span class="total-buy">--</span> | 
+                        Sell: <span class="total-sell">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Place Order Button -->
+            <button type="submit" class="btn btn-block place-order-btn">
+                Place Order
+            </button>
+        </form>
+    </div>
+</dialog>
+
+<!-- Add animation styles -->
+<style>
+.market-depth {
+    transition: all 0.2s ease-in-out;
+}
+
+.market-depth.hidden {
+    max-height: 0;
+    opacity: 0;
+}
+
+.market-depth:not(.hidden) {
+    max-height: 500px;
+    opacity: 1;
+}
+
+.market-depth-icon {
+    transition: transform 0.2s ease-in-out;
+}
+
+.market-depth:not(.hidden) + button .market-depth-icon {
+    transform: rotate(180deg);
+}
+
+.price-adjust {
+    transition: all 0.15s ease-in-out;
+}
+
+.price-adjust:active {
+    transform: scale(0.95);
+}
+</style>

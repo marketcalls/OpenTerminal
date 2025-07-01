@@ -1,35 +1,79 @@
 {% extends 'layout.html' %}
 {% block content %}
-<div class="flex items-center justify-center min-h-[calc(100vh-14rem)]">
-    <div class="w-full max-w-md p-8 space-y-6 bg-gray-800 rounded-lg shadow-xl">
-        <h1 class="text-4xl font-bold text-center text-blue-400">Register</h1>
-        <form action="{{ url_for('auth.register') }}" method="POST" class="space-y-4">
-            <!-- CSRF token should be included as a hidden input -->
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="card w-full max-w-md bg-base-200 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title text-2xl font-bold justify-center mb-8">Create Account</h2>
+            
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-error mb-6">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
 
-            <div class="form-control">
-                <label for="username" class="label">
-                    <span class="label-text text-white">Username</span>
-                </label>
-                <input type="text" name="username" required class="input input-bordered w-full bg-gray-700 text-white">
-            </div>
+            <form action="{{ url_for('auth.register') }}" method="POST" class="space-y-6">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-            <div class="form-control">
-                <label for="client_id" class="label">
-                    <span class="label-text text-white">Client ID</span>
-                </label>
-                <input type="text" name="client_id" required class="input input-bordered w-full bg-gray-700 text-white">
-            </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Username</span>
+                    </label>
+                    <input type="text" 
+                           name="username" 
+                           required 
+                           class="input input-bordered w-full" 
+                           placeholder="Choose a username"
+                           autocomplete="username">
+                </div>
 
-            <div class="form-control">
-                <label for="api_key" class="label">
-                    <span class="label-text text-white">API Key</span>
-                </label>
-                <input type="text" name="api_key" required class="input input-bordered w-full bg-gray-700 text-white">
-            </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Client ID</span>
+                    </label>
+                    <input type="text" 
+                           name="client_id" 
+                           required 
+                           class="input input-bordered w-full" 
+                           placeholder="Enter your client ID">
+                </div>
 
-            <button type="submit" class="btn btn-primary w-full">Register</button>
-        </form>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">API Key</span>
+                        <span class="label-text-alt">From your broker</span>
+                    </label>
+                    <input type="text" 
+                           name="api_key" 
+                           required 
+                           class="input input-bordered w-full font-mono" 
+                           placeholder="Enter your API key">
+                </div>
+
+                <div class="form-control mt-8">
+                    <button type="submit" class="btn btn-primary w-full gap-2">
+                        Create Account
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="divider">OR</div>
+
+                <div class="text-center">
+                    <a href="{{ url_for('auth.login') }}" class="link link-primary">
+                        Already have an account? Login
+                    </a>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 {% endblock %}

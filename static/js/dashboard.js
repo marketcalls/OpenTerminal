@@ -11,6 +11,46 @@ document.addEventListener('DOMContentLoaded', function() {
         SENSEX: { token: "99919000", exchType: 3 }  // BSE
     };
 
+    // Initialize settings
+    function initializeSettings() {
+        const showLtpChange = document.getElementById('show-ltp-change');
+        const showLtpChangePercent = document.getElementById('show-ltp-change-percent');
+        const showHoldings = document.getElementById('show-holdings');
+
+        // Initialize settings object
+        const settings = {
+            show_ltp_change: showLtpChange ? showLtpChange.checked : false,
+            show_ltp_change_percent: showLtpChangePercent ? showLtpChangePercent.checked : false,
+            show_holdings: showHoldings ? showHoldings.checked : false
+        };
+
+        // Log initial settings
+        console.log('Initializing MarketDataUpdater with settings:', settings);
+        MarketDataUpdater.init(settings);
+
+        // Add change event listeners
+        [showLtpChange, showLtpChangePercent, showHoldings].forEach(checkbox => {
+            if (checkbox) {
+                checkbox.addEventListener('change', function() {
+                    const newSettings = {
+                        show_ltp_change: showLtpChange ? showLtpChange.checked : false,
+                        show_ltp_change_percent: showLtpChangePercent ? showLtpChangePercent.checked : false,
+                        show_holdings: showHoldings ? showHoldings.checked : false
+                    };
+                    console.log('Settings updated:', newSettings);
+                    MarketDataUpdater.updateSettings(newSettings);
+                    
+                    // Dispatch event for other components
+                    window.dispatchEvent(new CustomEvent('watchlistSettingsUpdated', {
+                        detail: newSettings
+                    }));
+                });
+            }
+        });
+
+        return settings;
+    }
+
     async function fetchTokens() {
         try {
             const response = await fetch('/api/get_tokens', {
@@ -58,13 +98,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         ws.onmessage = function(event) {
             if (event.data === 'pong') {
-                console.log('Heartbeat received');
                 return;
             }
             
             try {
                 const decodedData = MarketDataDecoder.decode(event.data);
-                console.log('Received data for token:', decodedData.tokenString);
                 
                 if (decodedData.tokenString === INDEX_TOKENS.NIFTY.token) {
                     updateNiftyData(decodedData);
@@ -95,7 +133,6 @@ document.addEventListener('DOMContentLoaded', function() {
         heartbeatInterval = setInterval(() => {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send('ping');
-                console.log('Heartbeat sent');
             }
         }, 30000);
     }
@@ -124,10 +161,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         };
 
-        console.log('Subscribing to indices:', subscribeMsg);
         ws.send(JSON.stringify(subscribeMsg));
-        
-        // Add to current subscriptions
         currentSubscriptions.add(INDEX_TOKENS.NIFTY.token);
         currentSubscriptions.add(INDEX_TOKENS.SENSEX.token);
     }
@@ -158,21 +192,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function subscribeActiveWatchlist() {
         const activeTab = document.querySelector('.tab-active');
-        if (!activeTab) {
-            console.log('No active tab found');
-            return;
-        }
+        if (!activeTab) return;
 
         const watchlistId = activeTab.dataset.watchlistId;
         const watchlistContent = document.getElementById(`watchlist-${watchlistId}`);
-        if (!watchlistContent) {
-            console.log('No watchlist content found for ID:', watchlistId);
-            return;
-        }
+        if (!watchlistContent) return;
 
         const symbols = Array.from(watchlistContent.querySelectorAll('[data-token]'));
-        console.log('Found symbols:', symbols.length);
-        
         if (symbols.length === 0) return;
 
         const tokens = symbols.map(symbol => ({
@@ -180,7 +206,6 @@ document.addEventListener('DOMContentLoaded', function() {
             exchType: parseInt(symbol.dataset.exchType)
         }));
 
-        console.log('Subscribing to tokens:', tokens);
         handleSubscription(tokens, true);
     }
 
@@ -190,17 +215,15 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        const action = subscribe ? 1 : 2;
         const subscribeMsg = {
             correlationID: "watchlist_" + Date.now(),
-            action: action,
+            action: subscribe ? 1 : 2,
             params: {
                 mode: 3,
                 tokenList: groupTokensByExchange(tokens)
             }
         };
 
-        console.log(`${subscribe ? 'Subscribing to' : 'Unsubscribing from'} tokens:`, tokens);
         ws.send(JSON.stringify(subscribeMsg));
 
         tokens.forEach(({token}) => {
@@ -227,9 +250,27 @@ document.addEventListener('DOMContentLoaded', function() {
         }));
     }
 
-    // Event listeners for subscription management
+    function toggleDepth(token) {
+        const depthElement = document.getElementById(`depth-${token}`);
+        if (!depthElement) return;
+    
+        document.querySelectorAll('.market-depth').forEach(depth => {
+            if (depth.id !== `depth-${token}`) {
+                depth.classList.add('hidden');
+            }
+        });
+    
+        depthElement.classList.toggle('hidden');
+        if (!depthElement.classList.contains('hidden')) {
+            depthElement.classList.add('animate-expand');
+            setTimeout(() => {
+                depthElement.classList.remove('animate-expand');
+            }, 200);
+        }
+    }
+
+    // Event Listeners
     window.addEventListener('websocketSubscribe', function(event) {
-        console.log('Received subscribe event:', event.detail);
         if (ws && ws.readyState === WebSocket.OPEN) {
             const tokens = event.detail.params.tokenList.flatMap(
                 item => item.tokens.map(token => ({
@@ -242,7 +283,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     window.addEventListener('websocketUnsubscribe', function(event) {
-        console.log('Received unsubscribe event:', event.detail);
         if (ws && ws.readyState === WebSocket.OPEN) {
             const tokens = event.detail.params.tokenList.flatMap(
                 item => item.tokens.map(token => ({
@@ -256,15 +296,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     window.addEventListener('symbolAdded', function(event) {
         const newSymbolData = event.detail;
-        console.log('New symbol added event received:', newSymbolData);
-
         if (!newSymbolData.token) {
             console.error('Invalid symbol data received');
             return;
         }
-
-        currentSubscriptions.add(newSymbolData.token);
-        console.log('Added to current subscriptions:', newSymbolData.token);
 
         if (ws && ws.readyState === WebSocket.OPEN) {
             const subscribeMsg = {
@@ -279,32 +314,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             };
 
-            console.log('Sending subscription message for new symbol:', subscribeMsg);
+            currentSubscriptions.add(newSymbolData.token);
             ws.send(JSON.stringify(subscribeMsg));
-        } else {
-            console.error('WebSocket not ready for new symbol subscription');
         }
     });
 
     window.addEventListener('symbolRemoved', function(event) {
         const { token } = event.detail;
         currentSubscriptions.delete(token);
-        console.log('Removed subscription after symbol removal:', token);
     });
 
-    // Initialize modules with settings
-    const watchlistSettings = {
-        show_ltp_change: document.getElementById('show-ltp-change')?.checked || false,
-        show_ltp_change_percent: document.getElementById('show-ltp-change-percent')?.checked || false,
-        show_holdings: document.getElementById('show-holdings')?.checked || false
-    };
+    // Initialize everything
+    const settings = initializeSettings();  // Initialize settings first
+    WatchlistManager.init();  // Then initialize WatchlistManager
+    initializeWebSocket();    // Finally initialize WebSocket
 
-    WatchlistManager.init();
-    MarketDataUpdater.init(watchlistSettings);
-    initializeWebSocket();
-
+    // Listen for setting updates
     window.addEventListener('watchlistSettingsUpdated', function(event) {
-        const newSettings = event.detail;
-        MarketDataUpdater.updateSettings(newSettings);
+        MarketDataUpdater.updateSettings(event.detail);
     });
 });

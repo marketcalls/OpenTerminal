@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title if title else 'Open Terminal' }}</title>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet" type="text/css" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <script>
         tailwind.config = {
@@ -18,40 +19,8 @@
             }
         }
     </script>
-    <style>
-        /* Custom scrollbar styles */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: hsl(var(--b3));
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: hsl(var(--bc / 0.3));
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: hsl(var(--bc / 0.5));
-        }
-
-        /* Ensure consistent height */
-        html, body {
-            height: 100%;
-            overflow: hidden;
-        }
-
-        /* Main content area scrolling */
-        .content-area {
-            height: calc(100vh - 4rem); /* Adjust based on your navbar height */
-            overflow-y: auto;
-        }
-    </style>
 </head>
+
 <body class="bg-base-100 text-base-content">
     <div class="drawer drawer-mobile">
         <!-- Drawer toggle for mobile -->
@@ -83,6 +52,9 @@
                             <li><a href="/positions" class="btn btn-sm btn-ghost">Positions</a></li>
                             <li><a href="/holdings" class="btn btn-sm btn-ghost">Holdings</a></li>
                             <li><a href="/funds" class="btn btn-sm btn-ghost">Funds</a></li>
+                            <li><a href="/voice" class="btn btn-sm btn-ghost">Voice Trading</a></li>
+                            <li><a href="/scalper" class="btn btn-sm btn-ghost">Scalper</a></li>
+                            <li><a href="/logs" class="btn btn-sm btn-ghost">Logs</a></li>
                         {% else %}
                             <li><a href="/" class="btn btn-sm btn-ghost">Home</a></li>
                             <li><a href="/about" class="btn btn-sm btn-ghost">About</a></li>
@@ -100,6 +72,7 @@
                         </label>
                         <ul tabindex="0" class="menu menu-compact dropdown-content mt-3 p-2 shadow bg-base-200 rounded-box w-52">
                             {% if session.get('client_id') %}
+                                <li><a href="/voice/settings">Voice Settings</a></li>
                                 <li><a href="/logout">Logout</a></li>
                             {% else %}
                                 <li><a href="/login">Login</a></li>
@@ -155,7 +128,11 @@
                     <li><a href="/positions">Positions</a></li>
                     <li><a href="/holdings">Holdings</a></li>
                     <li><a href="/funds">Funds</a></li>
+                    <li><a href="/voice">Voice Trading</a></li>
+                    <li><a href="/scalper">Scalper</a></li>
+                    <li><a href="/logs">Logs</a></li>
                     <li class="divider"></li>
+                    <li><a href="/voice/settings">Voice Settings</a></li>
                     <li><a href="/logout">Logout</a></li>
                 {% else %}
                     <li><a href="/">Home</a></li>
@@ -176,5 +153,25 @@
         </div>
     </footer>
     {% endif %}
+
+    <!-- Theme Switcher -->
+    <div class="theme-switcher">
+        <svg class="theme-icon theme-icon-dark" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+        <input type="checkbox" class="toggle toggle-md theme-controller" />
+        <svg class="theme-icon theme-icon-light" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
+        </svg>
+    </div>
+
+    <!-- Theme transition overlay -->
+    <div class="theme-transition"></div>
+
+    <!-- Add the theme.js script -->
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    
+    <!-- Additional scripts -->
+    {% block scripts %}{% endblock %}
 </body>
 </html>
